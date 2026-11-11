@@ -1,0 +1,59 @@
+#ifndef GAME_H
+#define GAME_H
+
+#include <SDL.h>
+
+#define SCREEN_W   320
+#define SCREEN_H   240
+#define TILE       20
+#define MAP_W      (SCREEN_W / TILE)
+#define MAP_H      400
+#define ARENA_ROWS 16
+#define MAX_SPAWN  512
+
+enum tile   { T_FLOOR, T_WALL, T_ROOF };
+enum etype  { E_TURRET, E_CRAWLER, E_DRONE, E_DART, E_POD, E_CORE, E_ROVER };
+enum sprite { SPR_SHIP, SPR_TANK, SPR_TURRET, SPR_CRAWLER, SPR_DRONE, SPR_DART, SPR_CORE, SPR_ROVER, SPR_MAX };
+enum sfx    { SFX_SHOT, SFX_HIT, SFX_BOOM, SFX_MORPH, SFX_DENY, SFX_PICKUP, SFX_HURT, SFX_MAX };
+enum draw   { DRAW_NORMAL, DRAW_FLASH, DRAW_SHADOW };
+enum plate  { PLATE_FLOOR, PLATE_SEAM, PLATE_VENT, PLATE_WALL, PLATE_MAX };
+
+struct input {
+	int left, right, up, down, fire, morph, start;
+};
+
+/* Ground enemies appear at x,y.  Air enemies use y as the scroll trigger
+ * and enter from the top of the screen after delay frames. */
+struct spawn {
+	int   type;
+	float x, y;
+	int   delay;
+};
+
+struct level {
+	unsigned char tile[MAP_H][MAP_W];
+	int           rows;
+	struct spawn  spawn[MAX_SPAWN];
+	int           nspawn;
+};
+
+void level_generate(struct level *lv, int sector);
+
+void gfx_init(SDL_Renderer *r);
+void gfx_sprite(int id, float x, float y, double angle, int scale, int mode);
+void gfx_plate(int id, int x, int y, SDL_Color tint);
+void gfx_rect(int x, int y, int w, int h, SDL_Color c);
+/* x < 0 centers the text */
+void gfx_text(int x, int y, int scale, SDL_Color c, const char *fmt, ...)
+	__attribute__((format(printf, 5, 6)));
+
+void sfx_init(void);
+void sfx_play(int id);
+void sfx_music(const char *name);
+
+void game_init(int start_row);
+void game_update(const struct input *in);
+void game_draw(void);
+void game_autopilot(struct input *in);
+
+#endif
