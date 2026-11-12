@@ -21,9 +21,7 @@
 #define DIAG_FRAMES 8
 #define SHIP_SCROLL 0.6f
 #define HALT_Y     48
-#define MOUSE_REACH 16
-#define MOUSE_STICK 10
-#define MOUSE_REST  8
+#define MARK_NEAR  3
 #define LIFE_SCORE 20000
 #define HOVER_Y    56
 #define FUSE_FRAMES 480
@@ -44,7 +42,7 @@ struct axis   { int sign, seen, flip; };
 static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
 	float         mx, my;
-	int           brake;
+	int           mouse;
 	int           pods, next_spawn, start_row, start_sector, flash;
 	struct axis   wx, wy;
 	float         cam, fx, fy;
@@ -63,6 +61,7 @@ static struct level lv;
 static const SDL_Color WHITE  = { 236, 240, 244, 255 };
 static const SDL_Color GREY   = { 120, 128, 144, 255 };
 static const SDL_Color CYAN   = {  96, 220, 240, 255 };
+static const SDL_Color MARK   = {  96, 220, 240, 170 };
 static const SDL_Color YELLOW = { 250, 226,  90, 255 };
 static const SDL_Color ORANGE = { 240, 140,  40, 255 };
 static const SDL_Color RED    = { 230,  60,  70, 255 };
@@ -326,7 +325,7 @@ static void start_sector(int sector)
 	struct player *p = &g.p;
 
 	g.sector = sector;
-	g.mx = g.my = 0;
+	g.mouse = 0;
 	level_generate(&lv, sector);
 
 	memset(g.enemy, 0, sizeof(g.enemy));
@@ -478,11 +477,9 @@ static void update_player(const struct input *in, int morph)
 	int dx = in->right - in->left, dy = in->down - in->up;
 	float speed = (p->ship ? 2.0f : 1.2f) * (1 + 0.2f * p->speed);
 	int block = p->ship ? T_ROOF : T_WALL;
-	float nx, ny, sy, len, dot, pull, vx = 0, vy = 0;
-	int tug;
+	float nx, ny, sy, vx = 0, vy = 0;
 
 	if (p->dead) {
-		g.mx = g.my = 0;
 		if (--p->dead > 0)
 			return;
 		if (g.lives < 0) {
@@ -507,40 +504,31 @@ static void update_player(const struct input *in, int morph)
 	if (p->missile_cd)
 		p->missile_cd--;
 
-	/* to the tank the mouse is a stick that stays where it is put; a tug back
-	 * centres it and holds it there until the mouse has come to rest */
-	dot = in->mx * g.mx + in->my * g.my;
-	pull = in->mx * in->mx + in->my * in->my;
-	tug = dot < 0 && dot * dot > 0.25f * pull * (g.mx * g.mx + g.my * g.my);
-	if (!p->ship && pull > 1 && (tug || g.brake))
-		g.brake = MOUSE_REST;
-	else if (g.brake)
-		g.brake--;
-	g.mx += in->mx;
-	g.my += in->my;
-	len = hypotf(g.mx, g.my);
-	if (dx || dy || g.brake || len < 0.5f) {
-		g.mx = g.my = 0;
-	} else if (p->ship) {
-		/* the ship chases the point the mouse drags along */
-		float step = SDL_min(len, speed), reach = SDL_min(len, MOUSE_REACH);
+	/* the mouse moves a marker on the screen and the craft heads for it */
+	if (dx || dy) {
+		g.mouse = 0;
+	} else if (!g.mouse && (in->mx || in->my)) {
+		g.mouse = 1;
+		g.mx = p->x;
+		g.my = p->y - g.cam;
+	}
 
-		vx = g.mx / len * step;
-		vy = g.my / len * step;
-		g.mx *= (reach - step) / len;
-		g.my *= (reach - step) / len;
-	} else {
-		if (len > MOUSE_STICK) {
-			g.mx *= MOUSE_STICK / len;
-			g.my *= MOUSE_STICK / len;
-		}
-		if (len > MOUSE_STICK * 0.5f) {
-			/* tan 22.5: an axis counts when within an octant of the pull */
-			dx = (fabsf(g.mx) > 0.4142f * fabsf(g.my)) * (g.mx > 0 ? 1 : -1);
-			dy = (fabsf(g.my) > 0.4142f * fabsf(g.mx)) * (g.my > 0 ? 1 : -1);
-		} else {
-			g.mx *= 0.97f;
-			g.my *= 0.97f;
+	if (g.mouse) {
+		float tx, ty, len;
+
+		g.mx = SDL_clamp(g.mx + in->mx, 8, SCREEN_W - 8);
+		g.my = SDL_clamp(g.my + in->my, 18, SCREEN_H - 8);
+		tx = g.mx - p->x;
+		ty = g.my - (p->y - g.cam);
+		len = hypotf(tx, ty);
+
+		if (p->ship && len > 0) {
+			vx = tx / len * SDL_min(len, speed);
+			vy = ty / len * SDL_min(len, speed);
+		} else if (!p->ship && len > MARK_NEAR) {
+			/* tan 22.5: an axis counts when within an octant of the heading */
+			dx = (fabsf(tx) > 0.4142f * fabsf(ty)) * (tx > 0 ? 1 : -1);
+			dy = (fabsf(ty) > 0.4142f * fabsf(tx)) * (ty > 0 ? 1 : -1);
 		}
 	}
 
@@ -584,8 +572,6 @@ static void update_player(const struct input *in, int morph)
 			sfx_play(SFX_DENY);
 		} else {
 			p->ship = !p->ship;
-			g.mx = g.my = 0;
-			g.brake = 0;
 			p->morph_cd = 20;
 			spark(p->x, p->y, 14, 1.5f, CYAN);
 			sfx_play(SFX_MORPH);
@@ -1306,6 +1292,13 @@ void game_draw(void)
 
 		if (q->life > 0)
 			gfx_rect(q->x, q->y - cam, sz, sz, q->c);
+	}
+
+	if (g.mouse && g.state == ST_PLAY && !g.p.dead) {
+		for (int i = -1; i <= 1; i += 2) {
+			gfx_rect(g.mx + i * 4 - 1.5f, g.my - 0.5f, 3, 1, MARK);
+			gfx_rect(g.mx - 0.5f, g.my + i * 4 - 1.5f, 1, 3, MARK);
+		}
 	}
 
 	if (g.flash)
