@@ -58,6 +58,29 @@ static int usage(int rc)
 	return rc;
 }
 
+/* Returns the stored score, or stores score if it is not zero. */
+static int hiscore(int score)
+{
+	char path[512], *dir = SDL_GetPrefPath("", "sector9");
+	FILE *fp;
+
+	if (!dir)
+		return 0;
+	snprintf(path, sizeof(path), "%shiscore", dir);
+	SDL_free(dir);
+
+	fp = fopen(path, score ? "w" : "r");
+	if (!fp)
+		return 0;
+	if (score)
+		fprintf(fp, "%d\n", score);
+	else if (fscanf(fp, "%d", &score) != 1)
+		score = 0;
+	fclose(fp);
+
+	return score;
+}
+
 int main(int argc, char *argv[])
 {
 	int fullscreen = 0, demo = 0, frames = 0, row = 0, sector = 1, paused = 0, run = 1;
@@ -115,7 +138,7 @@ int main(int argc, char *argv[])
 
 	gfx_init(ren);
 	sfx_init();
-	game_init(row, sector - 1);
+	game_init(row, sector - 1, demo ? 0 : hiscore(0));
 
 	prev = SDL_GetPerformanceCounter();
 	while (run) {
@@ -186,6 +209,9 @@ int main(int argc, char *argv[])
 
 		SDL_RenderPresent(ren);
 	}
+
+	if (!demo)
+		hiscore(game_hiscore());
 
 	SDL_Quit();
 	return 0;

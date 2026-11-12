@@ -62,7 +62,8 @@ void sfx_init(void);
 void sfx_play(int id);
 void sfx_music(const char *name);
 
-void game_init(int start_row, int start_sector);
+void game_init(int start_row, int start_sector, int hiscore);
+int  game_hiscore(void);
 void game_update(const struct input *in);
 void game_draw(void);
 void game_autopilot(struct input *in);

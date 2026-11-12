@@ -365,12 +365,11 @@ static void add_score(int n)
 		sfx_play(SFX_PICKUP);
 	}
 	g.score += n;
+	g.hiscore = SDL_max(g.hiscore, g.score);
 }
 
 static void game_over(void)
 {
-	if (g.score > g.hiscore)
-		g.hiscore = g.score;
 	g.state = ST_OVER;
 	g.timer = 60;
 }
@@ -951,14 +950,20 @@ static void show_title(void)
 	sfx_music("title");
 }
 
-void game_init(int start_row, int start_sector)
+void game_init(int start_row, int start_sector, int hiscore)
 {
 	memset(&g, 0, sizeof(g));
+	g.hiscore = hiscore;
 	g.seed = 0x2545f491u;
 	g.start_row = start_row;
 	g.start_sector = SDL_clamp(start_sector, 0, SECTORS);
 	g.wx.flip = g.wy.flip = -1000;
 	show_title();
+}
+
+int game_hiscore(void)
+{
+	return g.hiscore;
 }
 
 void game_update(const struct input *in)
@@ -1203,7 +1208,7 @@ static void draw_hud(void)
 	gfx_text(108, 2, 1, YELLOW, "GUN %d", p->weapon);
 	if (p->missiles)
 		gfx_text(196, 2, 1, RED, "H %d", p->missiles);
-	gfx_text(-1, 2, 1, GREY, "HI %06d", SDL_max(g.hiscore, g.score));
+	gfx_text(-1, 2, 1, GREY, "HI %06d", g.hiscore);
 	if (beyond())
 		gfx_text(SCREEN_W - 80, 2, 1, YELLOW, "BEYOND X%d", 2 + lap());
 	else

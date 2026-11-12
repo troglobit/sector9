@@ -79,6 +79,9 @@ harder enemies.  Later sectors are longer, bring in gunships and heavy
 tanks, and everything in them fires faster.  Every 20,000 points earns
 an extra life.
 
+The high score is saved in `~/.local/share/sector9/hiscore` when you
+quit.
+
 Sector nine is the last one, and it looks the part.  Its fortress has
 four towers, and when the core has taken half of its damage it lifts
 off the ground, so the tank starts that fight and the ship has to
