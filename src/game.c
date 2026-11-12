@@ -430,9 +430,9 @@ static void damage_enemy(struct enemy *e)
 		}
 	} else if (e->type == E_TURRET) {
 		/* a supply capsule may rise out of the wrecked tower's block */
-		if (rnd(3) == 0)
+		if (rnd(2) == 0)
 			drop_item(e->x, e->y, RISE_FRAMES);
-	} else if (rnd(6) == 0) {
+	} else if (rnd(4) == 0) {
 		drop_item(e->x, e->y, 0);
 	}
 }
