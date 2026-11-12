@@ -148,11 +148,14 @@ kind in a sector carries its name for a moment, and the voice says it.
 The same goes for the fortress.
 
 The voice is a set of samples in the `voice` directory next to the
-binary, one `.wav` per name, 8-bit at 11 kHz.  They were made with
-[eSpeak NG](https://github.com/espeak-ng/espeak-ng) and SoX; `make
-voices` makes them again.  A missing file means silence, and any `.wav`
-with the right name will be played instead, if you would rather record
-your own.
+binary, one `.wav` per name.  They were made with
+[Piper](https://github.com/OHF-Voice/piper1-gpl) and SoX, using the
+voice `en_US-joe-medium` from
+[piper-voices](https://huggingface.co/rhasspy/piper-voices), which is
+released as CC0.  `make voices VOICE=/path/to/en_US-joe-medium.onnx`
+makes them again, with that voice or another.  A missing file means
+silence, and any `.wav` with the right name will be played instead, if
+you would rather record your own.
 
 Music
 -----

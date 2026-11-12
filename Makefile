@@ -19,8 +19,10 @@ clean:
 	$(RM) sector9 $(OBJS)
 
 # The spoken names in voice/ are checked in.  This makes them again, with
-# eSpeak NG and SoX, as 8-bit samples at 11 kHz.
-ESPEAK ?= espeak-ng -v en-us -p 20 -s 130
+# Piper and SoX.  VOICE is a Piper voice model; the ones here were made
+# with en_US-joe-medium, which is CC0.  Piper adds a little randomness, so
+# no two runs give the same files.
+VOICE  ?= en_US-joe-medium.onnx
 WORDS   = tower gun-tower crawler drone dart rover gunship heavy-tank \
 	  warden pinwheel trident ram brood cyclone lancer swarm overseer \
 	  sector-one sector-two sector-three sector-four sector-five \
@@ -29,9 +31,10 @@ WORDS   = tower gun-tower crawler drone dart rover gunship heavy-tank \
 voices:
 	mkdir -p voice
 	set -e; for w in $(WORDS); do \
-		$(ESPEAK) --stdout "$$(echo $$w | tr - ' ')" | \
-		sox -D -t wav - -r 11025 -b 8 voice/$$w.wav \
-			silence 1 0.01 0.5% reverse silence 1 0.01 0.5% reverse norm -1; \
+		piper -m $(VOICE) --length-scale 1.15 -f voice/tmp.wav -- "$$(echo $$w | tr - ' ')."; \
+		sox -D voice/tmp.wav -r 22050 -b 16 -c 1 voice/$$w.wav \
+			silence 1 0.01 0.1% reverse silence 1 0.01 0.1% reverse pad 0.02 0.05 norm -1; \
 	done
+	$(RM) voice/tmp.wav
 
 .PHONY: all clean voices
