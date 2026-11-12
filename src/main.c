@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: ISC */
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,8 +80,8 @@ static int usage(int rc)
 {
 	fprintf(rc ? stderr : stdout,
 		"Usage: sector9 [-fh]\n"
-		"  -f  Start in fullscreen\n"
-		"  -h  Show this help text\n");
+		"  -f, --fullscreen  Start in fullscreen\n"
+		"  -h, --help        Show this help text\n");
 	return rc;
 }
 
@@ -109,32 +110,54 @@ static int stored(const char *name, int value)
 
 int main(int argc, char *argv[])
 {
+	/* the long-only options are test hooks: scripted player, frame limit, screenshot, start row and sector */
+	enum { OPT_DEMO = 256, OPT_FRAMES, OPT_SHOT, OPT_ROW, OPT_SECTOR };
+	static const struct option opts[] = {
+		{ "fullscreen", no_argument,       NULL, 'f' },
+		{ "help",       no_argument,       NULL, 'h' },
+		{ "demo",       no_argument,       NULL, OPT_DEMO },
+		{ "frames",     required_argument, NULL, OPT_FRAMES },
+		{ "shot",       required_argument, NULL, OPT_SHOT },
+		{ "row",        required_argument, NULL, OPT_ROW },
+		{ "sector",     required_argument, NULL, OPT_SECTOR },
+		{ 0 }
+	};
 	int fullscreen = 0, demo = 0, frames = 0, row = 0, sector = 1, paused = 0, mouse = 0, notice = 0, hi = 0, run = 1;
+	int c;
 	const char *shot = NULL;
 	SDL_Window *win;
 	SDL_Renderer *ren;
 	Uint64 prev;
 	double acc = 0;
 
-	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-f"))
+	while ((c = getopt_long(argc, argv, "fh", opts, NULL)) != -1) {
+		switch (c) {
+		case 'f':
 			fullscreen = 1;
-		else if (!strcmp(argv[i], "-h"))
+			break;
+		case 'h':
 			return usage(0);
-		/* test hooks: scripted player, frame limit, screenshot, start row and sector */
-		else if (!strcmp(argv[i], "--demo"))
+		case OPT_DEMO:
 			demo = 1;
-		else if (!strcmp(argv[i], "--frames") && i + 1 < argc)
-			frames = atoi(argv[++i]);
-		else if (!strcmp(argv[i], "--shot") && i + 1 < argc)
-			shot = argv[++i];
-		else if (!strcmp(argv[i], "--row") && i + 1 < argc)
-			row = atoi(argv[++i]);
-		else if (!strcmp(argv[i], "--sector") && i + 1 < argc)
-			sector = atoi(argv[++i]);
-		else
+			break;
+		case OPT_FRAMES:
+			frames = atoi(optarg);
+			break;
+		case OPT_SHOT:
+			shot = optarg;
+			break;
+		case OPT_ROW:
+			row = atoi(optarg);
+			break;
+		case OPT_SECTOR:
+			sector = atoi(optarg);
+			break;
+		default:
 			return usage(1);
+		}
 	}
+	if (optind < argc)
+		return usage(1);
 
 	if (SDL_Init(SDL_INIT_VIDEO)) {
 		fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
@@ -199,7 +222,7 @@ int main(int argc, char *argv[])
 				break;
 			case SDLK_MINUS:
 			case SDLK_KP_MINUS:
-				set_mouse_speed(mouse_speed - 1);
+				set_mouse_speed(SDL_max(mouse_speed - 1, 1));
 				notice = 90;
 				break;
 			case SDLK_EQUALS:
