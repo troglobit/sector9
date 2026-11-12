@@ -42,12 +42,18 @@ static void ground(struct level *lv, int type, int row, int n, int count)
 	}
 }
 
+static void heavies(struct level *lv, int row, int n, int sector)
+{
+	if (sector >= 4)
+		ground(lv, E_HEAVY, row, n, rnd(2) + (sector >= 7));
+}
+
 static void wave(struct level *lv, int type, int row, int count)
 {
 	int x = 40 + rnd(SCREEN_W - 80);
 
 	for (int i = 0; i < count; i++) {
-		if (type == E_DART)
+		if (type != E_DRONE)
 			x = 24 + rnd(SCREEN_W - 48);
 		add(lv, type, x, row * TILE, 1 + i * 25);
 	}
@@ -63,18 +69,20 @@ static int by_scroll(const void *a, const void *b)
 void level_generate(struct level *lv, int sector)
 {
 	int row, last = -1;
+	int more = sector / 3, few = sector ? 2 : 1;
 
 	memset(lv, 0, sizeof(*lv));
-	lv->rows = SDL_min(MAP_H, 170 + sector * 40);
+	lv->rows = 110 + sector * 12;
 	row = lv->rows - 14;
 	seed = 0x9e3779b9u * (sector + 1);
 
 	while (row > ARENA_ROWS + 14) {
 		int kind, n;
 
+		/* the first sectors leave out the harder parts */
 		do {
 			kind = rnd(SEG_MAX);
-		} while (kind == last);
+		} while (kind == last || (kind == SEG_MAZE && sector < 2));
 		last = kind;
 
 		switch (kind) {
@@ -88,20 +96,23 @@ void level_generate(struct level *lv, int sector)
 				lv->tile[r][c] = lv->tile[r][c + 1] = T_WALL;
 				lv->tile[r + 1][c] = lv->tile[r + 1][c + 1] = T_WALL;
 			}
-			ground(lv, E_TURRET, row, n, 1 + rnd(2) + sector / 2);
-			ground(lv, E_CRAWLER, row, n, rnd(2));
-			ground(lv, E_ROVER, row, n, 1 + rnd(2));
-			wave(lv, E_DRONE, row + n, 3 + rnd(2) + sector / 2);
+			ground(lv, E_TURRET, row, n, 1 + rnd(few) + more);
+			ground(lv, E_CRAWLER, row, n, rnd(few));
+			ground(lv, E_ROVER, row, n, 1 + rnd(few));
+			heavies(lv, row, n, sector);
+			wave(lv, E_DRONE, row + n, 3 + rnd(2) + more);
+			if (sector >= 3 && rnd(2))
+				wave(lv, E_GUNSHIP, row + n / 2, 1 + (sector >= 6));
 			break;
 
 		case SEG_WALL:
 			n = 2 + rnd(2);
 			row -= n;
 			fill(lv, row, n, T_WALL);
-			for (int i = 1 + rnd(2); i > 0; i--)
+			for (int i = 1 + rnd(few); i > 0; i--)
 				add(lv, E_TURRET, (2 + rnd(MAP_W - 4)) * TILE + TILE / 2,
 				    (row + rnd(n)) * TILE + TILE / 2, 0);
-			wave(lv, E_DART, row + n, 3 + sector);
+			wave(lv, sector ? E_DART : E_DRONE, row + n, 3 + sector / 2);
 			break;
 
 		case SEG_ROOF:
@@ -110,8 +121,9 @@ void level_generate(struct level *lv, int sector)
 			fill(lv, row, n, T_ROOF);
 			for (int i = 3 + rnd(3); i > 0; i--)
 				lv->tile[row + rnd(n)][rnd(MAP_W)] = T_WALL;
-			ground(lv, E_ROVER, row, n, 2 + rnd(2) + sector / 2);
-			ground(lv, E_CRAWLER, row, n, 1 + rnd(2));
+			ground(lv, E_ROVER, row, n, 1 + rnd(2) + more);
+			ground(lv, E_CRAWLER, row, n, sector ? 1 + rnd(2) : 0);
+			heavies(lv, row, n, sector);
 			break;
 
 		case SEG_MAZE:
@@ -124,7 +136,7 @@ void level_generate(struct level *lv, int sector)
 				fill(lv, r, 1, T_WALL);
 				memset(&lv->tile[r][gap], T_FLOOR, 3);
 			}
-			ground(lv, E_TURRET, row, n, 1 + sector / 2);
+			ground(lv, E_TURRET, row, n, 1 + more);
 			ground(lv, E_ROVER, row, n, 1 + rnd(2));
 			wave(lv, rnd(2) ? E_DRONE : E_DART, row + n, 3);
 			break;

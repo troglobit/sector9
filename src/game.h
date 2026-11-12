@@ -10,12 +10,13 @@
 #define MAP_H      400
 #define ARENA_ROWS 16
 #define MAX_SPAWN  512
+#define SECTORS    9
 
 enum tile   { T_FLOOR, T_WALL, T_ROOF };
-enum etype  { E_TURRET, E_CRAWLER, E_DRONE, E_DART, E_POD, E_CORE, E_ROVER };
+enum etype  { E_TURRET, E_CRAWLER, E_DRONE, E_DART, E_POD, E_CORE, E_ROVER, E_GUNSHIP, E_HEAVY };
 enum sprite {
 	SPR_SHIP, SPR_TANK, SPR_TURRET, SPR_GUN, SPR_POD, SPR_CRAWLER, SPR_DRONE, SPR_DART, SPR_CORE, SPR_ROVER,
-	SPR_BUDDY, SPR_CAPSULE, SPR_ORB, SPR_MAX
+	SPR_GUNSHIP, SPR_HEAVY, SPR_BUDDY, SPR_CAPSULE, SPR_ORB, SPR_MAX
 };
 enum sfx    { SFX_SHOT, SFX_HIT, SFX_BOOM, SFX_MORPH, SFX_DENY, SFX_PICKUP, SFX_HURT, SFX_MAX };
 enum draw   { DRAW_NORMAL, DRAW_FLASH };
@@ -58,7 +59,7 @@ void sfx_init(void);
 void sfx_play(int id);
 void sfx_music(const char *name);
 
-void game_init(int start_row);
+void game_init(int start_row, int start_sector);
 void game_update(const struct input *in);
 void game_draw(void);
 void game_autopilot(struct input *in);

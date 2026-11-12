@@ -157,6 +157,31 @@ static const struct shape rover[] = {
 	{ 0 }
 };
 
+static const struct shape gunship[] = {
+	{ 'p', 'd', 1, { 4, 2, -7, 11.6f, -4, 11.6f, 1, 2, 4 } },
+	{ 'l', 'R', 1, { 9.4f, -5.4f, 9.4f, 2.6f, 1.5f } },
+	{ 'c', 'o', 1, { 9.4f, -5.6f, 0.8f } },
+	{ 'b', 'g', 0, { 0, -0.5f, 3.6f, 9.4f, 2.6f } },
+	{ 'l', 'd', 1, { 1.8f, 7, 1.8f, 11, 0.6f } },
+	{ 'l', 'o', 0, { 0, 2, 0, 6, 1.5f } },
+	{ 'c', 'y', 0, { 0, 5.8f, 0.7f } },
+	{ 'b', 'd', 0, { 0, -6, 2.2f, 1.2f, 0.5f } },
+	{ 0 }
+};
+
+static const struct shape heavy[] = {
+	{ 'b', 'd', 1, { 6.9f, 0.4f, 2.1f, 8.6f, 1 } },
+	{ 'l', 'k', 1, { 5.6f, -5, 8.2f, -5, 0.25f } },
+	{ 'l', 'k', 1, { 5.6f, -1.8f, 8.2f, -1.8f, 0.25f } },
+	{ 'l', 'k', 1, { 5.6f, 1.4f, 8.2f, 1.4f, 0.25f } },
+	{ 'l', 'k', 1, { 5.6f, 4.6f, 8.2f, 4.6f, 0.25f } },
+	{ 'b', 'R', 0, { 0, 0.6f, 5.2f, 7, 1.3f } },
+	{ 'l', 'd', 1, { 1.4f, -1, 1.4f, -9.4f, 0.7f } },
+	{ 'b', 'o', 0, { 0, 1, 3.4f, 3.6f, 1.2f } },
+	{ 'c', 'y', 0, { 0, 1.4f, 1.2f } },
+	{ 0 }
+};
+
 static const struct shape buddy[] = {
 	{ 'l', 'g', 1, { 1.6f, 0.2f, 3.3f, 1.6f, 0.45f } },
 	{ 'c', 'c', 0, { 0, 0, 2.4f } },
@@ -186,6 +211,8 @@ static const struct model model[SPR_MAX] = {
 	[SPR_DART]    = {  9, 0.5f, 0, dart },
 	[SPR_CORE]    = { 24, 0.7f, 0, core },
 	[SPR_ROVER]   = {  8, 0.5f, 0, rover },
+	[SPR_GUNSHIP] = { 13, 0.5f, 0, gunship },
+	[SPR_HEAVY]   = { 11, 0.5f, 0, heavy },
 	[SPR_BUDDY]   = {  5, 0.4f, 0, buddy },
 	[SPR_CAPSULE] = {  6, 0.4f, 0, capsule },
 	[SPR_ORB]     = {  4, 0,    1, orb },

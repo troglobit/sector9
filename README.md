@@ -74,6 +74,11 @@ Losing a life costs one gun level, one companion and all speed.
 Each sector ends with a fortress.  Its core sits on the ground and is
 shielded until both of its towers are shot down from the air.
 
+There are nine sectors.  The first ones are short and leave out the
+harder enemies.  Later sectors are longer, bring in gunships and heavy
+tanks, and everything in them fires faster.  Every 20,000 points earns
+an extra life.
+
 Music
 -----
 

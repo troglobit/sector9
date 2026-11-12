@@ -20,6 +20,8 @@
 #define DIAG_FRAMES 8
 #define SHIP_SCROLL 0.6f
 #define HALT_Y     48
+#define LIFE_SCORE 20000
+#define HOVER_Y    56
 
 enum { ST_TITLE, ST_PLAY, ST_CLEAR, ST_OVER };
 enum { IT_GUN, IT_SHIELD, IT_SPEED, IT_BUDDY, IT_MISSILE, IT_BOMB, IT_MAX };
@@ -34,7 +36,7 @@ struct axis   { int sign, seen, flip; };
 
 static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
-	int           pods, next_spawn, start_row, flash;
+	int           pods, next_spawn, start_row, start_sector, flash;
 	struct axis   wx, wy;
 	float         cam;
 	unsigned      seed;
@@ -59,19 +61,22 @@ static const SDL_Color GREEN  = {  90, 200, 110, 255 };
 static const SDL_Color DARK   = {   8,  10,  16, 255 };
 static const SDL_Color SHADOW = {   0,   0,   0,  90 };
 
-/* hit_by is the level a shot must be on to damage it.  Towers and pods
- * stand on a block, out of the tank's reach.  gun is the size of the
- * barrel that tracks the player. */
+/* hit_by is the level a shot must be on to damage it, and the level of
+ * its own shots.  Towers and pods stand on a block, out of the tank's
+ * reach.  gun is the size of the barrel that tracks the player. */
 static const struct etype_info {
-	int hp, score, radius, sprite, gun, hit_by, flies, boss;
+	int   hp, score, radius, sprite, gun, hit_by, flies, boss, shots;
+	float shot_speed, drive;
 } et[] = {
-	[E_TURRET]  = {  3,  100,  7, SPR_TURRET,  1, L_AIR,    0, 0 },
-	[E_CRAWLER] = {  2,  150,  7, SPR_CRAWLER, 0, L_GROUND, 0, 0 },
-	[E_DRONE]   = {  2,  100,  7, SPR_DRONE,   0, L_AIR,    1, 0 },
-	[E_DART]    = {  1,  150,  7, SPR_DART,    0, L_AIR,    1, 0 },
-	[E_POD]     = { 16, 1000, 13, SPR_POD,     2, L_AIR,    0, 1 },
-	[E_CORE]    = { 40, 5000, 20, SPR_CORE,    0, L_GROUND, 0, 1 },
-	[E_ROVER]   = {  3,  200,  7, SPR_ROVER,   0, L_GROUND, 0, 0 },
+	[E_TURRET]  = {  3,  100,  7, SPR_TURRET,  1, L_AIR,    0, 0, 1, 1.6f, 0 },
+	[E_CRAWLER] = {  2,  150,  7, SPR_CRAWLER, 0, L_GROUND, 0, 0, 0, 0,    0 },
+	[E_DRONE]   = {  2,  100,  7, SPR_DRONE,   0, L_AIR,    1, 0, 1, 1.8f, 0 },
+	[E_DART]    = {  1,  150,  7, SPR_DART,    0, L_AIR,    1, 0, 0, 0,    0 },
+	[E_POD]     = { 12, 1000, 13, SPR_POD,     2, L_AIR,    0, 1, 3, 1.8f, 0 },
+	[E_CORE]    = { 30, 5000, 20, SPR_CORE,    0, L_GROUND, 0, 1, 8, 1.5f, 0 },
+	[E_ROVER]   = {  3,  200,  7, SPR_ROVER,   0, L_GROUND, 0, 0, 1, 1.6f, 0.4f },
+	[E_GUNSHIP] = {  8,  400,  9, SPR_GUNSHIP, 0, L_AIR,    1, 0, 3, 1.8f, 0 },
+	[E_HEAVY]   = {  8,  400,  9, SPR_HEAVY,   0, L_GROUND, 0, 0, 2, 1.6f, 0.22f },
 };
 
 static const struct {
@@ -228,7 +233,7 @@ static void spawn_enemy(const struct spawn *s)
 				     .x = s->x, .y = s->y };
 		e->hp = et[s->type].hp;
 		if (et[s->type].boss)
-			e->hp += e->hp * g.sector / 4;
+			e->hp += e->hp * g.sector / 6;
 		if (!et[s->type].flies)
 			e->t = rnd(60);
 		if (s->type == E_CRAWLER)
@@ -276,7 +281,24 @@ static void new_game(void)
 	g.p.speed = 0;
 	g.p.buddies = 0;
 	sfx_music("sector");
-	start_sector(0);
+	start_sector(g.start_sector);
+}
+
+static void add_score(int n)
+{
+	if ((g.score + n) / LIFE_SCORE > g.score / LIFE_SCORE) {
+		g.lives++;
+		sfx_play(SFX_PICKUP);
+	}
+	g.score += n;
+}
+
+static void game_over(void)
+{
+	if (g.score > g.hiscore)
+		g.hiscore = g.score;
+	g.state = ST_OVER;
+	g.timer = 60;
 }
 
 static void hurt_player(void)
@@ -307,7 +329,7 @@ static void damage_enemy(struct enemy *e)
 	}
 
 	e->alive = 0;
-	g.score += et[e->type].score;
+	add_score(et[e->type].score);
 	explode(e->x, e->y, et[e->type].radius * 4);
 
 	if (e->type == E_POD) {
@@ -366,10 +388,7 @@ static void update_player(const struct input *in, int morph)
 		if (--p->dead > 0)
 			return;
 		if (g.lives < 0) {
-			if (g.score > g.hiscore)
-				g.hiscore = g.score;
-			g.state = ST_OVER;
-			g.timer = 60;
+			game_over();
 			return;
 		}
 		p->hp = MAX_HP;
@@ -451,10 +470,20 @@ static void update_player(const struct input *in, int morph)
 		player_fire();
 }
 
+/* Fires n shots fanned out around ang, gap apart. */
+static void enemy_fire(const struct enemy *e, float ang, int n, float gap)
+{
+	const struct etype_info *t = &et[e->type];
+	float speed = t->shot_speed * (0.85f + 0.04f * g.sector);
+
+	for (int i = 0; i < n; i++)
+		add_bullet(e->x, e->y, ang + (i - (n - 1) / 2.0f) * gap, speed, 0, t->hit_by);
+}
+
 static void update_enemies(void)
 {
 	struct player *p = &g.p;
-	int period = SDL_max(60, 120 - g.sector * 10);
+	int period = 150 - g.sector * 10;
 
 	while (g.next_spawn < lv.nspawn && lv.spawn[g.next_spawn].y >= g.cam - 24)
 		spawn_enemy(&lv.spawn[g.next_spawn++]);
@@ -483,7 +512,7 @@ static void update_enemies(void)
 		switch (e->type) {
 		case E_TURRET:
 			if (vis && e->t % period == 0)
-				add_bullet(e->x, e->y, aim, 1.6f, 0, L_AIR);
+				enemy_fire(e, aim, t->shots, 0);
 			break;
 
 		case E_CRAWLER:
@@ -498,7 +527,7 @@ static void update_enemies(void)
 			e->y += 0.5f;
 			e->x = e->vx + 40 * sinf(e->t * 0.05f);
 			if (vis && e->t % 100 == 0)
-				add_bullet(e->x, e->y, aim, 1.8f, 0, L_AIR);
+				enemy_fire(e, aim, t->shots, 0);
 			break;
 
 		case E_DART:
@@ -506,38 +535,46 @@ static void update_enemies(void)
 			e->x += p->x > e->x ? 0.5f : -0.5f;
 			break;
 
+		case E_GUNSHIP:
+			/* drops in, hovers ahead of the ship, then leaves */
+			e->y += e->t > 600 || e->y < g.cam + HOVER_Y ? 0.8f : -SHIP_SCROLL;
+			e->x += SDL_clamp(p->x - e->x, -0.3f, 0.3f);
+			if (vis && e->t % 90 == 0)
+				enemy_fire(e, aim, t->shots, 0.3f);
+			break;
+
 		case E_POD:
-			if (vis && e->t % 80 == 0) {
-				for (int n = -1; n <= 1; n++)
-					add_bullet(e->x, e->y, aim + n * 0.3f, 1.8f, 0, L_AIR);
-			}
+			if (vis && e->t % 90 == 0)
+				enemy_fire(e, aim, g.sector < 2 ? 1 : t->shots, 0.3f);
 			break;
 
 		case E_CORE:
 			e->x = SCREEN_W / 2 + 70 * sinf(e->t * 0.02f);
-			if (vis && !shielded(e) && e->t % 70 == 0) {
-				for (int n = 0; n < 10; n++)
-					add_bullet(e->x, e->y, n * (float)M_PI / 5 + e->t, 1.5f, 0, L_GROUND);
+			if (vis && !shielded(e) && e->t % (90 - g.sector * 3) == 0) {
+				int ring = t->shots + g.sector / 2;
+
+				enemy_fire(e, e->t, ring, 2 * (float)M_PI / ring);
 			}
 			break;
 
 		case E_ROVER:
+		case E_HEAVY:
 			if (!vis)
 				break;
 			if (fabsf(p->x - e->x) > 2) {
-				float nx = e->x + (p->x > e->x ? 0.4f : -0.4f);
+				float nx = e->x + (p->x > e->x ? t->drive : -t->drive);
 
 				if (!box_hits(nx, e->y, T_WALL))
 					e->x = nx;
 			}
 			if (fabsf(p->y - e->y) > 2) {
-				float ny = e->y + (p->y > e->y ? 0.4f : -0.4f);
+				float ny = e->y + (p->y > e->y ? t->drive : -t->drive);
 
 				if (!box_hits(e->x, ny, T_WALL))
 					e->y = ny;
 			}
 			if (e->t % period == 0)
-				add_bullet(e->x, e->y, aim, 1.6f, 0, L_GROUND);
+				enemy_fire(e, aim, t->shots, 0.24f);
 			break;
 		}
 
@@ -692,7 +729,7 @@ static void update_items(void)
 			continue;
 
 		it->alive = 0;
-		g.score += 50;
+		add_score(50);
 		switch (it->kind) {
 		case IT_GUN:
 			p->weapon = SDL_min(MAX_WEAPON, p->weapon + 1);
@@ -760,11 +797,12 @@ static void show_title(void)
 	sfx_music("title");
 }
 
-void game_init(int start_row)
+void game_init(int start_row, int start_sector)
 {
 	memset(&g, 0, sizeof(g));
 	g.seed = 0x2545f491u;
 	g.start_row = start_row;
+	g.start_sector = SDL_clamp(start_sector, 0, SECTORS - 1);
 	g.wx.flip = g.wy.flip = -1000;
 	show_title();
 }
@@ -802,8 +840,13 @@ void game_update(const struct input *in)
 
 	case ST_CLEAR:
 		update_particles();
-		if (--g.timer == 0)
+		if (--g.timer)
+			break;
+		if (g.sector + 1 < SECTORS) {
 			start_sector(g.sector + 1);
+		} else {
+			game_over();
+		}
 		break;
 
 	case ST_OVER:
@@ -837,9 +880,11 @@ void game_autopilot(struct input *in)
 static void draw_tiles(int roof, float cam)
 {
 	static const SDL_Color tints[] = {
-		{ 255, 255, 255, 255 }, { 255, 238, 222, 255 }, { 222, 255, 240, 255 }, { 240, 226, 255, 255 },
+		{ 255, 255, 255, 255 }, { 222, 255, 240, 255 }, { 255, 238, 222, 255 },
+		{ 240, 226, 255, 255 }, { 255, 250, 200, 255 }, { 205, 240, 255, 255 },
+		{ 255, 214, 226, 255 }, { 226, 255, 210, 255 }, { 255, 200, 190, 255 },
 	};
-	SDL_Color tint = tints[g.sector % 4];
+	SDL_Color tint = tints[g.sector % SDL_arraysize(tints)];
 	int r0 = (int)cam / TILE;
 	int glow = 50 + (int)(12 * sinf(g.frame * 0.1f));
 
@@ -882,7 +927,7 @@ static void draw_enemies(int air, float cam)
 		if (e->type == E_CRAWLER) {
 			ang = e->vx > 0 ? 90 : -90;
 			y += (e->t >> 3) & 1;
-		} else if (e->type == E_ROVER) {
+		} else if (t->drive) {
 			ang = aim;
 		}
 
@@ -1032,7 +1077,10 @@ void game_draw(void)
 	if (g.state == ST_CLEAR) {
 		gfx_text(-1, 90, 3, YELLOW, "SECTOR %d CLEAR", g.sector + 1);
 	} else if (g.state == ST_OVER) {
-		gfx_text(-1, 90, 4, RED, "GAME OVER");
+		if (g.lives >= 0)
+			gfx_text(-1, 90, 3, YELLOW, "SECTOR NINE CLEARED");
+		else
+			gfx_text(-1, 90, 4, RED, "GAME OVER");
 		gfx_text(-1, 124, 1, WHITE, "SCORE %06d", g.score);
 		if (!g.timer && blink)
 			gfx_text(-1, 140, 1, GREY, "PRESS FIRE");

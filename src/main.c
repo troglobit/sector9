@@ -59,7 +59,7 @@ static int usage(int rc)
 
 int main(int argc, char *argv[])
 {
-	int fullscreen = 0, demo = 0, frames = 0, row = 0, paused = 0, run = 1;
+	int fullscreen = 0, demo = 0, frames = 0, row = 0, sector = 1, paused = 0, run = 1;
 	const char *shot = NULL;
 	SDL_Window *win;
 	SDL_Renderer *ren;
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
 			fullscreen = 1;
 		else if (!strcmp(argv[i], "-h"))
 			return usage(0);
-		/* test hooks: scripted player, frame limit, screenshot, start row */
+		/* test hooks: scripted player, frame limit, screenshot, start row and sector */
 		else if (!strcmp(argv[i], "--demo"))
 			demo = 1;
 		else if (!strcmp(argv[i], "--frames") && i + 1 < argc)
@@ -80,6 +80,8 @@ int main(int argc, char *argv[])
 			shot = argv[++i];
 		else if (!strcmp(argv[i], "--row") && i + 1 < argc)
 			row = atoi(argv[++i]);
+		else if (!strcmp(argv[i], "--sector") && i + 1 < argc)
+			sector = atoi(argv[++i]);
 		else
 			return usage(1);
 	}
@@ -112,7 +114,7 @@ int main(int argc, char *argv[])
 
 	gfx_init(ren);
 	sfx_init();
-	game_init(row);
+	game_init(row, sector - 1);
 
 	prev = SDL_GetPerformanceCounter();
 	while (run) {
