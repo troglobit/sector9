@@ -22,7 +22,9 @@ clean:
 # eSpeak NG and SoX, as 8-bit samples at 11 kHz.
 ESPEAK ?= espeak-ng -v en-us -p 20 -s 130
 WORDS   = tower gun-tower crawler drone dart rover gunship heavy-tank \
-	  warden pinwheel trident ram brood cyclone lancer swarm overseer
+	  warden pinwheel trident ram brood cyclone lancer swarm overseer \
+	  sector-one sector-two sector-three sector-four sector-five \
+	  sector-six sector-seven sector-eight sector-nine beyond
 
 voices:
 	mkdir -p voice

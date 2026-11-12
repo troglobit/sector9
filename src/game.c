@@ -372,6 +372,11 @@ static void skip_spawns(void)
 		g.next_spawn++;
 }
 
+static const char *const sector_name[SECTORS] = {
+	"SECTOR ONE", "SECTOR TWO", "SECTOR THREE", "SECTOR FOUR", "SECTOR FIVE",
+	"SECTOR SIX", "SECTOR SEVEN", "SECTOR EIGHT", "SECTOR NINE",
+};
+
 static void start_sector(int sector)
 {
 	struct player *p = &g.p;
@@ -380,6 +385,7 @@ static void start_sector(int sector)
 	g.mouse = 0;
 	g.met = 0;
 	level_generate(&lv, sector);
+	sfx_say(beyond() ? "BEYOND" : sector_name[sector]);
 
 	memset(g.enemy, 0, sizeof(g.enemy));
 	memset(g.bullet, 0, sizeof(g.bullet));

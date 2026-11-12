@@ -9,7 +9,8 @@
 
 #define RATE   22050
 #define VOICES 8
-#define WORDS  24
+#define WORDS  32
+#define QUEUE  4
 
 struct voice {
 	float phase, freq, sweep, vol, decay, level;
@@ -40,6 +41,8 @@ static struct {
 	char       name[24];
 	Mix_Chunk *chunk;
 } word[WORDS];
+static Mix_Chunk *queue[QUEUE];
+static int        queued;
 
 static int synth(void)
 {
@@ -151,7 +154,7 @@ void sfx_music(const char *name)
 		Mix_PlayMusic(music, -1);
 }
 
-/* One word at a time: a new one cuts off the last.  A missing file means silence. */
+/* One word at a time, the rest wait their turn.  A missing file means silence. */
 void sfx_say(const char *name)
 {
 	char path[1024], file[sizeof(word[0].name)];
@@ -173,6 +176,14 @@ void sfx_say(const char *name)
 		locate(path, sizeof(path), "voice", file, "wav");
 		word[i].chunk = Mix_LoadWAV(path);
 	}
-	if (word[i].chunk)
-		Mix_PlayChannel(0, word[i].chunk, 0);
+	if (word[i].chunk && queued < QUEUE)
+		queue[queued++] = word[i].chunk;
+}
+
+void sfx_update(void)
+{
+	if (!queued || Mix_Playing(0))
+		return;
+	Mix_PlayChannel(0, queue[0], 0);
+	memmove(queue, queue + 1, --queued * sizeof(queue[0]));
 }

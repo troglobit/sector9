@@ -141,8 +141,9 @@ on the second, and so on.
 Names
 -----
 
-The first enemy of each kind in a sector carries its name for a moment,
-and a voice says it.  The same goes for the fortress.
+A voice announces each sector as it starts.  The first enemy of each
+kind in a sector carries its name for a moment, and the voice says it.
+The same goes for the fortress.
 
 The voice is a set of samples in the `voice` directory next to the
 binary, one `.wav` per name, 8-bit at 11 kHz.  They were made with

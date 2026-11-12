@@ -303,6 +303,7 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
+		sfx_update();
 		SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
 		SDL_RenderClear(ren);
 		game_draw();
