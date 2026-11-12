@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: ISC */
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -8,6 +9,7 @@
 
 #define RATE   22050
 #define VOICES 8
+#define WORDS  24
 
 struct voice {
 	float phase, freq, sweep, vol, decay, level;
@@ -33,6 +35,11 @@ static unsigned     lfsr = 0xace1u;
 static int          ready, out_rate, out_chan;
 static Mix_Music   *music;
 static char         playing[32];
+
+static struct {
+	char       name[24];
+	Mix_Chunk *chunk;
+} word[WORDS];
 
 static int synth(void)
 {
@@ -117,11 +124,19 @@ void sfx_play(int id)
 	SDL_AtomicSet(&pending[id], 1);
 }
 
-/* Loops music/<name>.mod from next to the binary, a missing file means silence. */
+/* A file that comes with the game, next to the binary. */
+static void locate(char *path, size_t len, const char *dir, const char *name, const char *ext)
+{
+	char *base = SDL_GetBasePath();
+
+	snprintf(path, len, "%s%s/%s.%s", base ? base : "", dir, name, ext);
+	SDL_free(base);
+}
+
+/* Loops music/<name>.mod, a missing file means silence. */
 void sfx_music(const char *name)
 {
 	char path[1024];
-	char *base;
 
 	if (!ready || !strcmp(playing, name))
 		return;
@@ -130,11 +145,34 @@ void sfx_music(const char *name)
 	Mix_HaltMusic();
 	Mix_FreeMusic(music);
 
-	base = SDL_GetBasePath();
-	snprintf(path, sizeof(path), "%smusic/%s.mod", base ? base : "", name);
-	SDL_free(base);
-
+	locate(path, sizeof(path), "music", name, "mod");
 	music = Mix_LoadMUS(path);
 	if (music)
 		Mix_PlayMusic(music, -1);
+}
+
+/* One word at a time: a new one cuts off the last.  A missing file means silence. */
+void sfx_say(const char *name)
+{
+	char path[1024], file[sizeof(word[0].name)];
+	int i;
+
+	if (!ready)
+		return;
+
+	snprintf(file, sizeof(file), "%s", name);
+	for (char *p = file; *p; p++)
+		*p = *p == ' ' ? '-' : tolower((unsigned char)*p);
+
+	for (i = 0; i < WORDS && word[i].name[0] && strcmp(word[i].name, file); i++)
+		;
+	if (i == WORDS)
+		return;
+	if (!word[i].name[0]) {
+		snprintf(word[i].name, sizeof(word[i].name), "%s", file);
+		locate(path, sizeof(path), "voice", file, "wav");
+		word[i].chunk = Mix_LoadWAV(path);
+	}
+	if (word[i].chunk)
+		Mix_PlayChannel(0, word[i].chunk, 0);
 }

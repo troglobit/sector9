@@ -80,6 +80,8 @@ void gfx_text(float x, float y, int scale, SDL_Color c, const char *fmt, ...)
 void sfx_init(void);
 void sfx_play(int id);
 void sfx_music(const char *name);
+/* Speaks the name: voice/gun-tower.wav for "GUN TOWER". */
+void sfx_say(const char *name);
 
 void game_init(int start_row, int start_sector, int hiscore);
 int  game_hiscore(void);

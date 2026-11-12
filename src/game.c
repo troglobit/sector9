@@ -208,6 +208,11 @@ static float aim_at(const struct enemy *e)
 	return atan2f(g.p.x - e->x, e->y - g.p.y);
 }
 
+static const char *name_of(const struct enemy *e)
+{
+	return e->type == E_CORE ? boss()->name : et[e->type].name;
+}
+
 static int onscreen(const struct enemy *e)
 {
 	return e->y > g.cam + 12 && e->y < g.cam + SCREEN_H;
@@ -770,6 +775,7 @@ static void update_enemies(void)
 		if (vis && !(g.met & 1u << e->type)) {
 			g.met |= 1u << e->type;
 			e->named = NAME_FRAMES;
+			sfx_say(name_of(e));
 		}
 		aim = aim_at(e);
 

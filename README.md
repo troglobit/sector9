@@ -141,7 +141,15 @@ on the second, and so on.
 Names
 -----
 
-The first enemy of each kind in a sector carries its name for a moment.
+The first enemy of each kind in a sector carries its name for a moment,
+and a voice says it.  The same goes for the fortress.
+
+The voice is a set of samples in the `voice` directory next to the
+binary, one `.wav` per name, 8-bit at 11 kHz.  They were made with
+[eSpeak NG](https://github.com/espeak-ng/espeak-ng) and SoX; `make
+voices` makes them again.  A missing file means silence, and any `.wav`
+with the right name will be played instead, if you would rather record
+your own.
 
 Music
 -----
