@@ -46,6 +46,7 @@ struct font {
 
 static SDL_Renderer *ren;
 static SDL_Texture  *tex[SPR_MAX];
+static SDL_Color     tint[SPR_MAX];
 static SDL_Texture  *plate[THEME_MAX][PLATE_MAX];
 static SDL_Texture  *logo, *shine, *glow;
 static struct font   font[FONTS];
@@ -744,8 +745,10 @@ void gfx_init(SDL_Renderer *r)
 		for (int i = 0; i < PLATE_MAX; i++)
 			plate[theme][i] = make_plate(i, theme);
 	}
-	for (int i = 0; i < SPR_MAX; i++)
+	for (int i = 0; i < SPR_MAX; i++) {
 		tex[i] = make_sprite(&model[i]);
+		tint[i] = (SDL_Color){ 255, 255, 255, 255 };
+	}
 	logo = make_logo();
 	glow = make_glow();
 }
@@ -774,8 +777,14 @@ void gfx_tinted(int id, float x, float y, float scale, SDL_Color c)
 	SDL_SetTextureColorMod(tex[id], c.r, c.g, c.b);
 	SDL_SetTextureAlphaMod(tex[id], c.a);
 	draw(id, x, y, 0, scale);
-	SDL_SetTextureColorMod(tex[id], 255, 255, 255);
 	SDL_SetTextureAlphaMod(tex[id], 255);
+	SDL_SetTextureColorMod(tex[id], tint[id].r, tint[id].g, tint[id].b);
+}
+
+void gfx_tint(int id, SDL_Color c)
+{
+	tint[id] = c;
+	SDL_SetTextureColorMod(tex[id], c.r, c.g, c.b);
 }
 
 void gfx_disc(float x, float y, float r, SDL_Color c)

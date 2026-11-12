@@ -88,7 +88,25 @@ screen, on the ground or in the air.  The bomb also wipes enemy shots.
 Losing a life costs one gun level, one companion and all speed.
 
 Each sector ends with a fortress.  Its core sits on the ground and is
-shielded until both of its towers are shot down from the air.
+shielded until all of its towers are shot down from the air.  A bar at
+the top of the screen shows what the core has left.
+
+Every sector has its own fortress.  They have two, three or four
+towers.  Some cores sway from side to side, some weave, and some come
+swooping down the deck at you.  They fire rings of shots, turning
+spirals or volleys aimed at the tank, and two of them send out rovers.
+
+| Sector | Fortress | Towers | The core                               |
+|--------|----------|--------|----------------------------------------|
+| 1      | Warden   | 2      | Sways, fires rings                     |
+| 2      | Pinwheel | 2      | Sways, fires a spiral                  |
+| 3      | Trident  | 3      | Weaves, fires aimed volleys            |
+| 4      | Ram      | 2      | Swoops down the deck, fires rings      |
+| 5      | Brood    | 3      | Sways, fires rings, sends out rovers   |
+| 6      | Cyclone  | 4      | Weaves, fires a spiral                 |
+| 7      | Lancer   | 3      | Swoops, fires aimed volleys            |
+| 8      | Swarm    | 4      | Sways, fires a spiral, sends out rovers |
+| 9      | Overseer | 4      | Weaves, fires rings, lifts off         |
 
 There are nine sectors.  The first ones are short and leave out the
 harder enemies.  Later sectors are longer, bring in gunships and heavy

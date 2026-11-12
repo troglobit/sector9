@@ -6,6 +6,19 @@
 
 enum { SEG_OPEN, SEG_WALL, SEG_ROOF, SEG_MAZE, SEG_MAX };
 
+/* The laps beyond the last sector go through them again. */
+static const struct boss bosses[SECTORS] = {
+	{ "WARDEN",   2, MOVE_SWAY,  FIRE_RING,   0, { 255, 255, 255, 255 } },
+	{ "PINWHEEL", 2, MOVE_SWAY,  FIRE_SPIRAL, 0, { 150, 255, 200, 255 } },
+	{ "TRIDENT",  3, MOVE_EIGHT, FIRE_FAN,    0, { 255, 215, 130, 255 } },
+	{ "RAM",      2, MOVE_SWOOP, FIRE_RING,   0, { 255, 150, 150, 255 } },
+	{ "BROOD",    3, MOVE_SWAY,  FIRE_RING,   1, { 200, 255, 120, 255 } },
+	{ "CYCLONE",  4, MOVE_EIGHT, FIRE_SPIRAL, 0, { 140, 215, 255, 255 } },
+	{ "LANCER",   3, MOVE_SWOOP, FIRE_FAN,    0, { 255, 170, 255, 255 } },
+	{ "SWARM",    4, MOVE_SWAY,  FIRE_SPIRAL, 1, { 255, 255, 130, 255 } },
+	{ "OVERSEER", 4, MOVE_EIGHT, FIRE_RING,   0, { 255, 255, 255, 255 } },
+};
+
 static unsigned seed;
 
 static int rnd(int n)
@@ -77,6 +90,32 @@ static void block(struct level *lv, int row, int col)
 {
 	for (int r = row; r < row + 2; r++)
 		lv->tile[r][col] = lv->tile[r][col + 1] = T_WALL;
+}
+
+/* A tower on its block. */
+static void pod(struct level *lv, int row, int col, int armed)
+{
+	block(lv, row, col);
+	if (armed)
+		add(lv, E_POD, (col + 1) * TILE, (row + 1) * TILE, 0);
+}
+
+/* The blocks of a fortress from row down.  An armed one, at the top of the
+ * map, also gets its towers and core. */
+static void fortress(struct level *lv, int sector, int row, int armed)
+{
+	int pods = level_boss(sector)->pods;
+
+	pod(lv, row + 5, 3, armed);
+	pod(lv, row + 5, MAP_W - 5, armed);
+	if (pods == 3)
+		pod(lv, row + 9, MAP_W / 2 - 1, armed);
+	if (pods == 4) {
+		pod(lv, row + 9, 6, armed);
+		pod(lv, row + 9, MAP_W - 8, armed);
+	}
+	if (armed)
+		add(lv, E_CORE, SCREEN_W / 2, CORE_Y, 0);
 }
 
 /* Islands of deck in open space, no fortress at the end. */
@@ -188,18 +227,12 @@ static void station(struct level *lv, int sector)
 		row -= 4;
 	}
 
-	block(lv, 5, 3);
-	block(lv, 5, MAP_W - 5);
-	add(lv, E_POD, 4 * TILE, 6 * TILE, 0);
-	add(lv, E_POD, SCREEN_W - 4 * TILE, 6 * TILE, 0);
-	/* the last fortress has four towers */
-	if (sector == SECTORS - 1) {
-		block(lv, 9, 6);
-		block(lv, 9, MAP_W - 8);
-		add(lv, E_POD, 7 * TILE, 10 * TILE, 0);
-		add(lv, E_POD, SCREEN_W - 7 * TILE, 10 * TILE, 0);
-	}
-	add(lv, E_CORE, SCREEN_W / 2, 4 * TILE + 8, 0);
+	fortress(lv, sector, 0, 1);
+}
+
+const struct boss *level_boss(int sector)
+{
+	return &bosses[sector % SECTORS];
 }
 
 void level_generate(struct level *lv, int sector)

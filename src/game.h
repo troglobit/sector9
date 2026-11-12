@@ -12,6 +12,7 @@
 #define ARENA_ROWS 8
 #define MAX_SPAWN  512
 #define SECTORS    9
+#define CORE_Y     (4 * TILE + 8)
 
 enum tile   { T_FLOOR, T_WALL, T_ROOF, T_VOID };
 enum etype  { E_TURRET, E_CRAWLER, E_DRONE, E_DART, E_POD, E_CORE, E_ROVER, E_GUNSHIP, E_HEAVY };
@@ -23,6 +24,8 @@ enum sfx    { SFX_SHOT, SFX_HIT, SFX_BOOM, SFX_MORPH, SFX_DENY, SFX_PICKUP, SFX_
 enum draw   { DRAW_NORMAL, DRAW_FLASH };
 enum plate  { PLATE_FLOOR, PLATE_SEAM, PLATE_VENT, PLATE_WALL, PLATE_MAX };
 enum theme  { THEME_STEEL, THEME_EMBER, THEME_MAX };
+enum move   { MOVE_SWAY, MOVE_EIGHT, MOVE_SWOOP };
+enum fire   { FIRE_RING, FIRE_SPIRAL, FIRE_FAN };
 
 struct input {
 	int   left, right, up, down, fire, morph, start;
@@ -44,8 +47,16 @@ struct level {
 	int           nspawn;
 };
 
+/* The fortress at the end of a sector: towers to shoot down, then the core. */
+struct boss {
+	const char *name;
+	int         pods, move, fire, brood;
+	SDL_Color   tint;
+};
+
 /* Sectors from SECTORS on are laps of the open space beyond the last one. */
 void level_generate(struct level *lv, int sector);
+const struct boss *level_boss(int sector);
 
 void gfx_init(SDL_Renderer *r);
 /* Window pixels per game pixel. */
@@ -53,6 +64,8 @@ float gfx_scale(void);
 /* Coordinates are game pixels, drawn at the resolution of the window. */
 void gfx_sprite(int id, float x, float y, double angle, float scale, int mode);
 void gfx_tinted(int id, float x, float y, float scale, SDL_Color c);
+/* Colours a sprite from now on. */
+void gfx_tint(int id, SDL_Color c);
 void gfx_disc(float x, float y, float r, SDL_Color c);
 /* Soft light added on top of what is there. */
 void gfx_glow(float x, float y, float r, SDL_Color c);

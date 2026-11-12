@@ -10,6 +10,7 @@
 #define BLAST_LIFE 20
 #define MAX_SHAKE  10
 #define SCAN_GAP   60
+#define CORE_CYCLE 300	/* frames between swoops, and between rovers */
 #define MAX_ITEM   8
 #define MAX_HP     4
 #define MAX_WEAPON 3
@@ -140,6 +141,11 @@ static int fuse_t(void)
 }
 
 /* What the difficulty follows; it stops rising a few laps into the beyond. */
+static const struct boss *boss(void)
+{
+	return level_boss(g.sector);
+}
+
 static int rank(void)
 {
 	return SDL_min(g.sector, 12);
@@ -351,13 +357,22 @@ static void skip_spawns(void)
 		g.next_spawn++;
 }
 
+static void load_level(int sector)
+{
+	SDL_Color tint = level_boss(sector)->tint;
+
+	level_generate(&lv, sector);
+	gfx_tint(SPR_CORE, tint);
+	gfx_tint(SPR_POD, tint);
+}
+
 static void start_sector(int sector)
 {
 	struct player *p = &g.p;
 
 	g.sector = sector;
 	g.mouse = 0;
-	level_generate(&lv, sector);
+	load_level(sector);
 
 	memset(g.enemy, 0, sizeof(g.enemy));
 	memset(g.bullet, 0, sizeof(g.bullet));
@@ -650,6 +665,63 @@ static void enemy_fire(const struct enemy *e, float ang, int n, float gap)
 		add_bullet(e->x, e->y, ang + (i - (n - 1) / 2.0f) * gap, speed, 0, level_of(e));
 }
 
+static int count(int type)
+{
+	int n = 0;
+
+	for (int i = 0; i < MAX_ENEMY; i++)
+		n += g.enemy[i].alive && g.enemy[i].type == type;
+
+	return n;
+}
+
+static void core_move(struct enemy *e)
+{
+	int dive = e->t % CORE_CYCLE - 200;
+
+	e->x = SCREEN_W / 2 + 70 * sinf(e->t * 0.02f);
+	e->y = CORE_Y;
+
+	switch (boss()->move) {
+	case MOVE_EIGHT:
+		e->y += 16 * sinf(e->t * 0.04f);
+		break;
+	case MOVE_SWOOP:
+		/* every five seconds it comes down the deck and goes back */
+		if (dive > 0)
+			e->y += 80 * powf(sinf(dive * (float)M_PI / 100), 2);
+		break;
+	}
+}
+
+static void core_fire(struct enemy *e, float aim)
+{
+	int ring = et[E_CORE].shots + rank() / 2;
+	int every = 100 - rank() * 3;
+
+	switch (boss()->fire) {
+	case FIRE_RING:
+		if (e->t % (90 - rank() * 3) == 0)
+			enemy_fire(e, e->t, ring, 2 * (float)M_PI / ring);
+		break;
+	case FIRE_SPIRAL:
+		/* two arms that turn as they fire */
+		if (e->t % (9 - rank() / 3) == 0)
+			enemy_fire(e, e->t * 0.07f, 2, (float)M_PI);
+		break;
+	case FIRE_FAN:
+		/* two volleys at the player, close together */
+		if (e->t % every == 0 || e->t % every == 14)
+			enemy_fire(e, aim, 5, 0.2f);
+		break;
+	}
+
+	if (boss()->brood && e->t % CORE_CYCLE == CORE_CYCLE / 2 && count(E_ROVER) < 3) {
+		spawn_enemy(&(struct spawn){ E_ROVER, e->x, e->y + 28, 0 });
+		spark(e->x, e->y + 28, 10, 1.2f, CYAN);
+	}
+}
+
 static void update_enemies(void)
 {
 	struct player *p = &g.p;
@@ -719,16 +791,12 @@ static void update_enemies(void)
 			break;
 
 		case E_CORE:
-			e->x = SCREEN_W / 2 + 70 * sinf(e->t * 0.02f);
+			core_move(e);
 			if (!vis || shielded(e))
 				break;
 			if (e->lifted && e->t % 50 == 0)
 				enemy_fire(e, aim, 5, 0.25f);
-			if (e->t % (90 - rank() * 3) == 0) {
-				int ring = t->shots + rank() / 2;
-
-				enemy_fire(e, e->t, ring, 2 * (float)M_PI / ring);
-			}
+			core_fire(e, aim);
 			break;
 
 		case E_ROVER:
@@ -968,7 +1036,7 @@ static void next_lap(void)
 {
 	float shift;
 
-	level_generate(&lv, ++g.sector);
+	load_level(++g.sector);
 	shift = START_CAM - g.cam;
 	g.cam += shift;
 	g.p.y += shift;
@@ -1024,7 +1092,7 @@ static void update_fuse(void)
 static void show_title(void)
 {
 	g.sector = 0;
-	level_generate(&lv, 0);
+	load_level(0);
 	g.cam = START_CAM;
 	g.state = ST_TITLE;
 	sfx_music("title");
@@ -1362,6 +1430,17 @@ static void draw_hud(void)
 	else
 		gfx_text(SCREEN_W - 76, 2, 1, WHITE, "SECTOR %d", g.sector + 1);
 	gfx_text(SCREEN_W - 30, 2, 1, WHITE, "LIFE %d", SDL_max(g.lives, 0));
+
+	for (int i = 0; i < MAX_ENEMY; i++) {
+		const struct enemy *e = &g.enemy[i];
+
+		if (!e->alive || e->type != E_CORE)
+			continue;
+		gfx_rect(SCREEN_W / 2 - 51, 12, 102, 4, DARK);
+		gfx_rect(SCREEN_W / 2 - 50, 13, 100.0f * e->hp / e->full, 2, shielded(e) ? CYAN : RED);
+		if (e->t < 240 && (e->t & 16))
+			gfx_text(-1, 20, 2, YELLOW, "%s", boss()->name);
+	}
 }
 
 void game_draw(void)
