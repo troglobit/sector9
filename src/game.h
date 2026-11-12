@@ -25,7 +25,8 @@ enum plate  { PLATE_FLOOR, PLATE_SEAM, PLATE_VENT, PLATE_WALL, PLATE_MAX };
 enum theme  { THEME_STEEL, THEME_EMBER, THEME_MAX };
 
 struct input {
-	int left, right, up, down, fire, morph, start;
+	int   left, right, up, down, fire, morph, start;
+	float mx, my;		/* mouse motion in game pixels */
 };
 
 /* Ground enemies appear at x,y.  Air enemies use y as the scroll trigger
@@ -47,6 +48,8 @@ struct level {
 void level_generate(struct level *lv, int sector);
 
 void gfx_init(SDL_Renderer *r);
+/* Window pixels per game pixel. */
+float gfx_scale(void);
 /* Coordinates are game pixels, drawn at the resolution of the window. */
 void gfx_sprite(int id, float x, float y, double angle, float scale, int mode);
 void gfx_tinted(int id, float x, float y, float scale, SDL_Color c);

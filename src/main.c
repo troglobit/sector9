@@ -9,6 +9,13 @@
 
 static SDL_GameController *pad;
 
+/* The pointer is captured from the first click, and let go while paused. */
+static void grab_mouse(int on)
+{
+	SDL_SetRelativeMouseMode(on ? SDL_TRUE : SDL_FALSE);
+	SDL_GetRelativeMouseState(NULL, NULL);
+}
+
 static void read_input(struct input *in)
 {
 	const Uint8 *k = SDL_GetKeyboardState(NULL);
@@ -20,6 +27,17 @@ static void read_input(struct input *in)
 	in->fire  = k[SDL_SCANCODE_Z] || k[SDL_SCANCODE_LCTRL] || k[SDL_SCANCODE_RCTRL];
 	in->morph = k[SDL_SCANCODE_X] || k[SDL_SCANCODE_SPACE];
 	in->start = k[SDL_SCANCODE_RETURN];
+	in->mx = in->my = 0;
+
+	if (SDL_GetRelativeMouseMode()) {
+		int x, y;
+		Uint32 b = SDL_GetRelativeMouseState(&x, &y);
+
+		in->mx = x / gfx_scale();
+		in->my = y / gfx_scale();
+		in->fire  |= !!(b & SDL_BUTTON_LMASK);
+		in->morph |= !!(b & SDL_BUTTON_RMASK);
+	}
 
 	if (pad) {
 		int ax = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTX);
@@ -83,7 +101,7 @@ static int hiscore(int score)
 
 int main(int argc, char *argv[])
 {
-	int fullscreen = 0, demo = 0, frames = 0, row = 0, sector = 1, paused = 0, run = 1;
+	int fullscreen = 0, demo = 0, frames = 0, row = 0, sector = 1, paused = 0, mouse = 0, run = 1;
 	const char *shot = NULL;
 	SDL_Window *win;
 	SDL_Renderer *ren;
@@ -152,6 +170,10 @@ int main(int argc, char *argv[])
 				run = 0;
 			if (ev.type == SDL_CONTROLLERDEVICEADDED && !pad)
 				pad = SDL_GameControllerOpen(ev.cdevice.which);
+			if (ev.type == SDL_MOUSEBUTTONDOWN && !mouse && !demo) {
+				mouse = 1;
+				grab_mouse(!paused);
+			}
 			if (ev.type != SDL_KEYDOWN || ev.key.repeat)
 				continue;
 
@@ -161,6 +183,7 @@ int main(int argc, char *argv[])
 				break;
 			case SDLK_p:
 				paused = !paused;
+				grab_mouse(mouse && !paused);
 				break;
 			case SDLK_F11:
 				fullscreen = !fullscreen;

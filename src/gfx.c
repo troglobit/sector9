@@ -682,7 +682,7 @@ static const struct font *get_font(float k)
 	return f;
 }
 
-static float pixel_scale(void)
+float gfx_scale(void)
 {
 	float sx, sy;
 
@@ -740,7 +740,7 @@ void gfx_disc(float x, float y, float r, SDL_Color c)
 
 void gfx_plate(int id, int theme, float x, float y, SDL_Color tint)
 {
-	float s = pixel_scale();
+	float s = gfx_scale();
 	float x0 = roundf(x * s) / s, y0 = roundf(y * s) / s;
 	SDL_FRect dst = { x0, y0, roundf((x + TILE) * s) / s - x0, roundf((y + TILE) * s) / s - y0 };
 
@@ -765,7 +765,7 @@ void gfx_logo(float y)
 
 void gfx_text(float x, float y, int scale, SDL_Color c, const char *fmt, ...)
 {
-	float s = pixel_scale();
+	float s = gfx_scale();
 	const struct font *f = get_font(scale * s);
 	char buf[64];
 	va_list ap;

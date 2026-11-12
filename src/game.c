@@ -21,6 +21,7 @@
 #define DIAG_FRAMES 8
 #define SHIP_SCROLL 0.6f
 #define HALT_Y     48
+#define MOUSE_REACH 16
 #define LIFE_SCORE 20000
 #define HOVER_Y    56
 #define FUSE_FRAMES 480
@@ -40,6 +41,7 @@ struct axis   { int sign, seen, flip; };
 
 static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
+	float         mx, my;
 	int           pods, next_spawn, start_row, start_sector, flash;
 	struct axis   wx, wy;
 	float         cam, fx, fy;
@@ -472,9 +474,10 @@ static void update_player(const struct input *in, int morph)
 	int dx = in->right - in->left, dy = in->down - in->up;
 	float speed = (p->ship ? 2.0f : 1.2f) * (1 + 0.2f * p->speed);
 	int block = p->ship ? T_ROOF : T_WALL;
-	float nx, ny, sy;
+	float nx, ny, sy, len, vx = 0, vy = 0;
 
 	if (p->dead) {
+		g.mx = g.my = 0;
 		if (--p->dead > 0)
 			return;
 		if (g.lives < 0) {
@@ -499,13 +502,38 @@ static void update_player(const struct input *in, int morph)
 	if (p->missile_cd)
 		p->missile_cd--;
 
+	/* the mouse drags a point that the craft chases, the tank in eight directions */
+	g.mx += in->mx;
+	g.my += in->my;
+	len = hypotf(g.mx, g.my);
+	if (dx || dy || len < 0.5f) {
+		g.mx = g.my = 0;
+	} else {
+		float step = SDL_min(len, speed), reach = SDL_min(len, MOUSE_REACH);
+
+		if (p->ship) {
+			vx = g.mx / len * step;
+			vy = g.my / len * step;
+		} else {
+			/* tan 22.5: an axis counts when within an octant of the pull */
+			dx = (fabsf(g.mx) > 0.4142f * fabsf(g.my)) * (g.mx > 0 ? 1 : -1);
+			dy = (fabsf(g.my) > 0.4142f * fabsf(g.mx)) * (g.my > 0 ? 1 : -1);
+		}
+		g.mx *= (reach - step) / len;
+		g.my *= (reach - step) / len;
+	}
+
 	if (dx && dy)
 		speed *= 0.7071f;
+	if (dx || dy) {
+		vx = dx * speed;
+		vy = dy * speed;
+	}
 
-	nx = SDL_clamp(p->x + dx * speed, 8, SCREEN_W - 8);
+	nx = SDL_clamp(p->x + vx, 8, SCREEN_W - 8);
 	if (!box_hits(nx, p->y, block))
 		p->x = nx;
-	ny = SDL_clamp(p->y + dy * speed, g.cam + 18, g.cam + SCREEN_H - 8);
+	ny = SDL_clamp(p->y + vy, g.cam + 18, g.cam + SCREEN_H - 8);
 	if (!box_hits(p->x, ny, block))
 		p->y = ny;
 
@@ -1231,8 +1259,9 @@ void game_draw(void)
 		gfx_logo(14);
 		if (blink)
 			gfx_text(-1, 124, 2, WHITE, "PRESS FIRE");
-		gfx_text(-1, 176, 1, GREY, "ARROWS MOVE - Z FIRES - SPACE MORPHS");
-		gfx_text(-1, 188, 1, GREY, "JOYSTICK: WIGGLE TO MORPH");
+		gfx_text(-1, 170, 1, GREY, "ARROWS MOVE - Z FIRES - SPACE MORPHS");
+		gfx_text(-1, 182, 1, GREY, "MOUSE: LEFT FIRES - RIGHT MORPHS");
+		gfx_text(-1, 194, 1, GREY, "JOYSTICK: WIGGLE TO MORPH");
 		if (g.hiscore)
 			gfx_text(-1, 220, 1, YELLOW, "HI %06d", g.hiscore);
 		return;

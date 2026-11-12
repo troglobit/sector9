@@ -40,6 +40,13 @@ and ship.  Space does the same and is easier on a keyboard.
 A game controller also works: stick or d-pad to move, A to fire, B or
 a wiggle to morph.
 
+So does a mouse.  Click in the window to capture the pointer, then
+move the mouse to steer, hold the left button to fire and press the
+right one to morph.  The ship follows the mouse freely.  The tank
+drives the way you push the mouse, in the nearest of its eight
+directions, and stops shortly after the mouse does.  Pausing lets the
+pointer go again.
+
 The tank sets its own pace: the screen scrolls only when you drive
 forward.  It faces and fires the way it drives, in eight directions.  The ship
 flies on by itself at a steady pace and halts in front of a roof.  The
