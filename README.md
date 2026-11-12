@@ -42,10 +42,11 @@ a wiggle to morph.
 
 So does a mouse.  Click in the window to capture the pointer, then
 move the mouse to steer, hold the left button to fire and press the
-right one to morph.  The ship follows the mouse freely.  The tank
-drives the way you push the mouse, in the nearest of its eight
-directions, and stops shortly after the mouse does.  Pausing lets the
-pointer go again.
+right one to morph.  The ship follows the mouse freely.  For the tank
+the mouse works like a stick that stays where you leave it: push it
+a little and the tank keeps driving that way, in the nearest of its
+eight directions.  Push sideways to turn, tug it back to stop.
+Pausing lets the pointer go again.
 
 The tank sets its own pace: the screen scrolls only when you drive
 forward.  It faces and fires the way it drives, in eight directions.  The ship

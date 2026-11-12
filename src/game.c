@@ -22,6 +22,7 @@
 #define SHIP_SCROLL 0.6f
 #define HALT_Y     48
 #define MOUSE_REACH 16
+#define MOUSE_STICK 10
 #define LIFE_SCORE 20000
 #define HOVER_Y    56
 #define FUSE_FRAMES 480
@@ -323,6 +324,7 @@ static void start_sector(int sector)
 	struct player *p = &g.p;
 
 	g.sector = sector;
+	g.mx = g.my = 0;
 	level_generate(&lv, sector);
 
 	memset(g.enemy, 0, sizeof(g.enemy));
@@ -474,7 +476,8 @@ static void update_player(const struct input *in, int morph)
 	int dx = in->right - in->left, dy = in->down - in->up;
 	float speed = (p->ship ? 2.0f : 1.2f) * (1 + 0.2f * p->speed);
 	int block = p->ship ? T_ROOF : T_WALL;
-	float nx, ny, sy, len, vx = 0, vy = 0;
+	float nx, ny, sy, len, dot, pull, vx = 0, vy = 0;
+	int tug;
 
 	if (p->dead) {
 		g.mx = g.my = 0;
@@ -502,25 +505,36 @@ static void update_player(const struct input *in, int morph)
 	if (p->missile_cd)
 		p->missile_cd--;
 
-	/* the mouse drags a point that the craft chases, the tank in eight directions */
+	/* to the tank the mouse is a stick that stays where it is put; a tug back centres it */
+	dot = in->mx * g.mx + in->my * g.my;
+	pull = in->mx * in->mx + in->my * in->my;
+	tug = !p->ship && dot < 0 && pull > 0.25f && dot * dot > 0.49f * pull * (g.mx * g.mx + g.my * g.my);
 	g.mx += in->mx;
 	g.my += in->my;
 	len = hypotf(g.mx, g.my);
-	if (dx || dy || len < 0.5f) {
+	if (dx || dy || tug || len < 0.5f) {
 		g.mx = g.my = 0;
-	} else {
+	} else if (p->ship) {
+		/* the ship chases the point the mouse drags along */
 		float step = SDL_min(len, speed), reach = SDL_min(len, MOUSE_REACH);
 
-		if (p->ship) {
-			vx = g.mx / len * step;
-			vy = g.my / len * step;
-		} else {
+		vx = g.mx / len * step;
+		vy = g.my / len * step;
+		g.mx *= (reach - step) / len;
+		g.my *= (reach - step) / len;
+	} else {
+		if (len > MOUSE_STICK) {
+			g.mx *= MOUSE_STICK / len;
+			g.my *= MOUSE_STICK / len;
+		}
+		if (len > MOUSE_STICK * 0.5f) {
 			/* tan 22.5: an axis counts when within an octant of the pull */
 			dx = (fabsf(g.mx) > 0.4142f * fabsf(g.my)) * (g.mx > 0 ? 1 : -1);
 			dy = (fabsf(g.my) > 0.4142f * fabsf(g.mx)) * (g.my > 0 ? 1 : -1);
+		} else {
+			g.mx *= 0.97f;
+			g.my *= 0.97f;
 		}
-		g.mx *= (reach - step) / len;
-		g.my *= (reach - step) / len;
 	}
 
 	if (dx && dy)
@@ -563,6 +577,7 @@ static void update_player(const struct input *in, int morph)
 			sfx_play(SFX_DENY);
 		} else {
 			p->ship = !p->ship;
+			g.mx = g.my = 0;
 			p->morph_cd = 20;
 			spark(p->x, p->y, 14, 1.5f, CYAN);
 			sfx_play(SFX_MORPH);
