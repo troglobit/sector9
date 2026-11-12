@@ -57,19 +57,21 @@ static const SDL_Color ORANGE = { 240, 140,  40, 255 };
 static const SDL_Color RED    = { 230,  60,  70, 255 };
 static const SDL_Color GREEN  = {  90, 200, 110, 255 };
 static const SDL_Color DARK   = {   8,  10,  16, 255 };
+static const SDL_Color SHADOW = {   0,   0,   0,  90 };
 
 /* hit_by is the level a shot must be on to damage it.  Towers and pods
- * stand on a block, out of the tank's reach. */
+ * stand on a block, out of the tank's reach.  gun is the size of the
+ * barrel that tracks the player. */
 static const struct etype_info {
-	int hp, score, radius, sprite, scale, hit_by, flies, boss;
+	int hp, score, radius, sprite, gun, hit_by, flies, boss;
 } et[] = {
 	[E_TURRET]  = {  3,  100,  7, SPR_TURRET,  1, L_AIR,    0, 0 },
-	[E_CRAWLER] = {  2,  150,  7, SPR_CRAWLER, 1, L_GROUND, 0, 0 },
-	[E_DRONE]   = {  2,  100,  7, SPR_DRONE,   1, L_AIR,    1, 0 },
-	[E_DART]    = {  1,  150,  7, SPR_DART,    1, L_AIR,    1, 0 },
-	[E_POD]     = { 16, 1000, 13, SPR_TURRET,  2, L_AIR,    0, 1 },
-	[E_CORE]    = { 40, 5000, 20, SPR_CORE,    3, L_GROUND, 0, 1 },
-	[E_ROVER]   = {  3,  200,  7, SPR_ROVER,   1, L_GROUND, 0, 0 },
+	[E_CRAWLER] = {  2,  150,  7, SPR_CRAWLER, 0, L_GROUND, 0, 0 },
+	[E_DRONE]   = {  2,  100,  7, SPR_DRONE,   0, L_AIR,    1, 0 },
+	[E_DART]    = {  1,  150,  7, SPR_DART,    0, L_AIR,    1, 0 },
+	[E_POD]     = { 16, 1000, 13, SPR_POD,     2, L_AIR,    0, 1 },
+	[E_CORE]    = { 40, 5000, 20, SPR_CORE,    0, L_GROUND, 0, 1 },
+	[E_ROVER]   = {  3,  200,  7, SPR_ROVER,   0, L_GROUND, 0, 0 },
 };
 
 static const struct {
@@ -832,28 +834,27 @@ void game_autopilot(struct input *in)
 	in->morph = stuck % 45 == 31;
 }
 
-static void draw_tiles(int roof)
+static void draw_tiles(int roof, float cam)
 {
 	static const SDL_Color tints[] = {
 		{ 255, 255, 255, 255 }, { 255, 238, 222, 255 }, { 222, 255, 240, 255 }, { 240, 226, 255, 255 },
 	};
 	SDL_Color tint = tints[g.sector % 4];
-	int r0 = (int)g.cam / TILE;
-	int oy = -((int)g.cam % TILE);
+	int r0 = (int)cam / TILE;
 	int glow = 50 + (int)(12 * sinf(g.frame * 0.1f));
 
 	for (int r = r0; r <= r0 + SCREEN_H / TILE && r < MAP_H; r++) {
 		for (int c = 0; c < MAP_W; c++) {
 			int t = lv.tile[r][c];
-			int x = c * TILE, y = (r - r0) * TILE + oy;
+			float x = c * TILE, y = r * TILE - cam;
 			unsigned h = (r * 73856093u) ^ (c * 19349663u);
 
 			if (roof) {
 				if (t != T_ROOF)
 					continue;
 				gfx_rect(x, y, TILE, TILE, (SDL_Color){ 40, 200, 220, glow });
-				gfx_rect(x, y, TILE, 1, (SDL_Color){ 130, 240, 255, 90 });
-				gfx_rect(x, y, 1, TILE, (SDL_Color){ 130, 240, 255, 90 });
+				gfx_rect(x, y, TILE, 0.5f, (SDL_Color){ 130, 240, 255, 110 });
+				gfx_rect(x, y, 0.5f, TILE, (SDL_Color){ 130, 240, 255, 110 });
 			} else if (t == T_WALL) {
 				gfx_plate(PLATE_WALL, x, y, tint);
 			} else {
@@ -867,13 +868,13 @@ static void draw_tiles(int roof)
 	}
 }
 
-static void draw_enemies(int air, int icam)
+static void draw_enemies(int air, float cam)
 {
 	for (int i = 0; i < MAX_ENEMY; i++) {
 		const struct enemy *e = &g.enemy[i];
 		const struct etype_info *t = &et[e->type];
-		float y = e->y - icam, aim = aim_at(e), ang = 0;
-		int scale = t->scale;
+		float y = e->y - cam, aim = aim_at(e) * 180 / (float)M_PI, ang = 0;
+		int mode = e->flash ? DRAW_FLASH : DRAW_NORMAL;
 
 		if (!e->alive || e->delay || t->flies != air)
 			continue;
@@ -882,48 +883,85 @@ static void draw_enemies(int air, int icam)
 			ang = e->vx > 0 ? 90 : -90;
 			y += (e->t >> 3) & 1;
 		} else if (e->type == E_ROVER) {
-			ang = aim * 180 / (float)M_PI;
+			ang = aim;
 		}
 
 		/* whatever the ship can hit is up high and casts a shadow */
 		if (t->flies)
-			gfx_sprite(t->sprite, e->x + 4, y + 8, 0, scale, DRAW_SHADOW);
+			gfx_tinted(t->sprite, e->x + 4, y + 8, 1, SHADOW);
 		else if (t->hit_by & L_AIR)
-			gfx_sprite(t->sprite, e->x + 3 * scale, y + 5 * scale, 0, scale, DRAW_SHADOW);
-		gfx_sprite(t->sprite, e->x, y, ang, scale, e->flash ? DRAW_FLASH : DRAW_NORMAL);
+			gfx_tinted(t->sprite, e->x + t->radius * 0.4f, y + t->radius * 0.7f, 1, SHADOW);
+		gfx_sprite(t->sprite, e->x, y, ang, 1, mode);
+		if (t->gun)
+			gfx_sprite(SPR_GUN, e->x, y, aim, t->gun, mode);
 
-		if (e->type == E_TURRET || e->type == E_POD) {
-			float bx = sinf(aim) * 2 * scale, by = -cosf(aim) * 2 * scale;
-
-			for (int k = 2; k <= 4; k++)
-				gfx_rect(e->x + bx * k - scale, y + by * k - scale, 2 * scale, 2 * scale, WHITE);
-		}
 		if (shielded(e) && (g.frame & 4))
 			gfx_rect(e->x - 26, y + 26, 52, 2, CYAN);
 	}
 }
 
-static void draw_player(int icam)
+static void draw_player(float cam)
 {
 	const struct player *p = &g.p;
-	float y = p->y - icam;
+	float y = p->y - cam;
 
 	if (p->dead || (p->invuln & 2))
 		return;
 
-	for (int i = 0; i < p->buddies; i++) {
-		int bx = g.bx[i], by = g.by[i] - icam;
-
-		gfx_rect(bx - 3, by - 1, 6, 2, CYAN);
-		gfx_rect(bx - 1, by - 3, 2, 6, CYAN);
-		gfx_rect(bx - 1, by - 1, 2, 2, WHITE);
-	}
+	for (int i = 0; i < p->buddies; i++)
+		gfx_sprite(SPR_BUDDY, g.bx[i], g.by[i] - cam, 0, 1, DRAW_NORMAL);
 
 	if (p->ship) {
-		gfx_sprite(SPR_SHIP, p->x + 4, y + 8, 0, 1, DRAW_SHADOW);
+		gfx_tinted(SPR_SHIP, p->x + 4, y + 8, 1, SHADOW);
 		gfx_sprite(SPR_SHIP, p->x, y, 0, 1, DRAW_NORMAL);
 	} else {
 		gfx_sprite(SPR_TANK, p->x, y, player_angle() * 180 / (float)M_PI, 1, DRAW_NORMAL);
+	}
+}
+
+static void draw_items(float cam, int blink)
+{
+	for (int i = 0; i < MAX_ITEM; i++) {
+		const struct item *it = &g.item[i];
+		float y = it->y - cam;
+		float size = 1 - 0.8f * it->rise / RISE_FRAMES;
+		SDL_Color c = *item_look[it->kind].tint;
+
+		if (!it->alive)
+			continue;
+		if (blink && !it->rise)
+			c = (SDL_Color){ (c.r + 255) / 2, (c.g + 255) / 2, (c.b + 255) / 2, 255 };
+		gfx_tinted(SPR_CAPSULE, it->x, y, size, c);
+		if (!it->rise)
+			gfx_text(it->x - 1.5f, y - 2.5f, 1, DARK, "%c", item_look[it->kind].letter);
+	}
+}
+
+static void draw_bullets(float cam)
+{
+	for (int i = 0; i < MAX_BULLET; i++) {
+		const struct bullet *b = &g.bullet[i];
+		float y = b->y - cam;
+
+		if (!b->alive)
+			continue;
+		if (!b->friendly) {
+			/* shots on the other level cannot hit, draw them faint */
+			SDL_Color c = (b->level & L_AIR) ? RED : ORANGE, mid = (g.frame & 4) ? YELLOW : WHITE;
+			float r = (b->level & L_AIR) ? 3 : 2;
+
+			c.a = mid.a = (b->level & player_level()) ? 255 : 70;
+			gfx_disc(b->x, y, r, c);
+			gfx_disc(b->x, y, r / 2, mid);
+		} else if (b->homing) {
+			gfx_disc(b->x, y, 2.4f, WHITE);
+			gfx_disc(b->x, y, 1.3f, RED);
+		} else if (b->level & L_AIR) {
+			gfx_rect(b->x - 1, y - 3, 2, 6, CYAN);
+			gfx_rect(b->x - 0.5f, y - 3, 1, 6, WHITE);
+		} else {
+			gfx_disc(b->x, y, 1.8f, YELLOW);
+		}
 	}
 }
 
@@ -948,16 +986,16 @@ static void draw_hud(void)
 
 void game_draw(void)
 {
-	int icam = (int)g.cam;
+	float cam = g.cam;
 	int blink = (g.frame / 30) & 1;
 
-	draw_tiles(0);
+	draw_tiles(0, cam);
 
 	if (g.state == ST_TITLE) {
-		draw_tiles(1);
+		draw_tiles(1, cam);
 		gfx_rect(0, 0, SCREEN_W, SCREEN_H, (SDL_Color){ 0, 0, 0, 130 });
-		gfx_text(-1, 54, 4, CYAN, "SECTOR NINE");
-		gfx_text(-1, 90, 1, GREY, "TANK FIGHTS THE GROUND - SHIP FIGHTS THE AIR");
+		gfx_logo(14);
+		gfx_text(-1, 98, 1, GREY, "TANK FIGHTS THE GROUND - SHIP FIGHTS THE AIR");
 		if (blink)
 			gfx_text(-1, 124, 2, WHITE, "PRESS FIRE");
 		gfx_text(-1, 164, 1, GREY, "ARROWS OR WASD: MOVE");
@@ -968,57 +1006,22 @@ void game_draw(void)
 		return;
 	}
 
-	for (int i = 0; i < MAX_ITEM; i++) {
-		const struct item *it = &g.item[i];
-		int y = it->y - icam;
-		int half = 5 - 4 * it->rise / RISE_FRAMES;
-
-		if (!it->alive)
-			continue;
-		gfx_rect(it->x - half, y - half, half * 2, half * 2, blink ? WHITE : GREY);
-		gfx_rect(it->x - half + 1, y - half + 1, half * 2 - 2, half * 2 - 2, *item_look[it->kind].tint);
-		if (!it->rise)
-			gfx_text(it->x - 1, y - 2, 1, DARK, "%c", item_look[it->kind].letter);
-	}
-
-	draw_enemies(0, icam);
+	draw_items(cam, blink);
+	draw_enemies(0, cam);
 	if (!g.p.ship)
-		draw_player(icam);
-	draw_tiles(1);
-	draw_enemies(1, icam);
+		draw_player(cam);
+	draw_tiles(1, cam);
+	draw_enemies(1, cam);
 	if (g.p.ship)
-		draw_player(icam);
-
-	for (int i = 0; i < MAX_BULLET; i++) {
-		const struct bullet *b = &g.bullet[i];
-		int y = b->y - icam;
-
-		if (!b->alive)
-			continue;
-		if (!b->friendly) {
-			/* shots on the other level cannot hit, draw them faint */
-			SDL_Color c = (b->level & L_AIR) ? RED : ORANGE, mid = (g.frame & 4) ? YELLOW : WHITE;
-			int sz = (b->level & L_AIR) ? 2 : 1;
-
-			c.a = mid.a = (b->level & player_level()) ? 255 : 70;
-			gfx_rect(b->x - sz, y - sz, sz * 2, sz * 2, c);
-			gfx_rect(b->x - 1, y - 1, sz, sz, mid);
-		} else if (b->homing) {
-			gfx_rect(b->x - 2, y - 2, 4, 4, WHITE);
-			gfx_rect(b->x - 1, y - 1, 2, 2, RED);
-		} else if (b->level & L_AIR) {
-			gfx_rect(b->x - 1, y - 3, 2, 6, CYAN);
-		} else {
-			gfx_rect(b->x - 1, y - 1, 3, 3, YELLOW);
-		}
-	}
+		draw_player(cam);
+	draw_bullets(cam);
 
 	for (int i = 0; i < MAX_PART; i++) {
 		const struct part *q = &g.part[i];
-		int sz = q->life > 12 ? 2 : 1;
+		float sz = q->life > 12 ? 1.6f : 1;
 
 		if (q->life > 0)
-			gfx_rect(q->x, q->y - icam, sz, sz, q->c);
+			gfx_rect(q->x, q->y - cam, sz, sz, q->c);
 	}
 
 	if (g.flash)

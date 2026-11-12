@@ -36,8 +36,11 @@ static void read_input(struct input *in)
 
 static void screenshot(SDL_Renderer *ren, const char *file)
 {
-	SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(0, SCREEN_W, SCREEN_H, 32, SDL_PIXELFORMAT_RGBA32);
+	SDL_Surface *s;
+	int w, h;
 
+	SDL_GetRendererOutputSize(ren, &w, &h);
+	s = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
 	if (!s)
 		return;
 	if (!SDL_RenderReadPixels(ren, NULL, SDL_PIXELFORMAT_RGBA32, s->pixels, s->pitch))
@@ -60,7 +63,6 @@ int main(int argc, char *argv[])
 	const char *shot = NULL;
 	SDL_Window *win;
 	SDL_Renderer *ren;
-	SDL_Texture *target;
 	Uint64 prev;
 	double acc = 0;
 
@@ -105,16 +107,8 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 	SDL_RenderSetLogicalSize(ren, SCREEN_W, SCREEN_H);
-	SDL_RenderSetIntegerScale(ren, SDL_TRUE);
 	SDL_ShowCursor(SDL_DISABLE);
-
-	target = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET, SCREEN_W, SCREEN_H);
-	if (!target) {
-		fprintf(stderr, "SDL_CreateTexture: %s\n", SDL_GetError());
-		return 1;
-	}
 
 	gfx_init(ren);
 	sfx_init();
@@ -176,7 +170,8 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		SDL_SetRenderTarget(ren, target);
+		SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
+		SDL_RenderClear(ren);
 		game_draw();
 		if (paused)
 			gfx_text(-1, 110, 3, (SDL_Color){ 255, 255, 255, 255 }, "PAUSED");
@@ -186,10 +181,6 @@ int main(int argc, char *argv[])
 			run = 0;
 		}
 
-		SDL_SetRenderTarget(ren, NULL);
-		SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
-		SDL_RenderClear(ren);
-		SDL_RenderCopy(ren, target, NULL, NULL);
 		SDL_RenderPresent(ren);
 	}
 

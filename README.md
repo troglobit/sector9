@@ -8,8 +8,9 @@ the ship.  The ship's guns reach aircraft and the gun towers that stand
 on raised blocks.  The tank's gun reaches the vehicles on the ground.
 You switch back and forth to get through a sector.
 
-All graphics and sound effects are generated in code for now.  They
-are placeholders.
+All graphics and sound effects are generated in code.  Sprites, tiles
+and text are drawn from shapes at the resolution of the window, so the
+picture stays sharp at any size.
 
 Building
 --------
