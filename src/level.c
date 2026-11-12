@@ -111,6 +111,7 @@ static void open_space(struct level *lv, int lap)
 static void station(struct level *lv, int sector)
 {
 	int row, last = -1;
+	int lag = 0;
 	int more = sector / 3, few = sector ? 2 : 1;
 
 	lv->rows = 110 + sector * 12;
@@ -123,6 +124,8 @@ static void station(struct level *lv, int sector)
 		do {
 			kind = rnd(SEG_MAX);
 		} while (kind == last || (kind == SEG_MAZE && sector < 2));
+		/* after a roof the tank needs time to get out and morph before aircraft arrive */
+		lag = last == SEG_ROOF ? 5 : 0;
 		last = kind;
 
 		switch (kind) {
@@ -139,9 +142,9 @@ static void station(struct level *lv, int sector)
 			ground(lv, E_CRAWLER, row, n, rnd(few));
 			ground(lv, E_ROVER, row, n, 1 + rnd(few));
 			heavies(lv, row, n, sector);
-			wave(lv, E_DRONE, row + n, 3 + rnd(2) + more);
+			wave(lv, E_DRONE, row + n - lag, 3 + rnd(2) + more);
 			if (sector >= 3 && rnd(2))
-				wave(lv, E_GUNSHIP, row + n / 2, 1 + (sector >= 6));
+				wave(lv, E_GUNSHIP, row + SDL_min(n / 2, n - lag), 1 + (sector >= 6));
 			break;
 
 		case SEG_WALL:
@@ -151,7 +154,7 @@ static void station(struct level *lv, int sector)
 			for (int i = 1 + rnd(few); i > 0; i--)
 				add(lv, E_TURRET, (2 + rnd(MAP_W - 4)) * TILE + TILE / 2,
 				    (row + rnd(n)) * TILE + TILE / 2, 0);
-			wave(lv, sector ? E_DART : E_DRONE, row + n, 3 + sector / 2);
+			wave(lv, sector ? E_DART : E_DRONE, row + n - lag, 3 + sector / 2);
 			break;
 
 		case SEG_ROOF:
@@ -177,7 +180,7 @@ static void station(struct level *lv, int sector)
 			}
 			ground(lv, E_TURRET, row, n, 1 + more);
 			ground(lv, E_ROVER, row, n, 1 + rnd(2));
-			wave(lv, rnd(2) ? E_DRONE : E_DART, row + n, 3);
+			wave(lv, rnd(2) ? E_DRONE : E_DART, row + n - lag, 3);
 			break;
 		}
 
