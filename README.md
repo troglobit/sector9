@@ -34,6 +34,7 @@ and ship.  Space does the same and is easier on a keyboard.
 | Z or Ctrl        | Fire                        |
 | Space or X       | Morph                       |
 | P                | Pause                       |
+| - and +          | Mouse speed                 |
 | F11              | Toggle fullscreen           |
 | Esc              | Quit                        |
 
@@ -46,7 +47,8 @@ for it: the ship in a straight line, the tank in the nearest of its
 eight directions.  The craft stops when it gets there, so park the
 marker where you want to be, or leave it at the top of the screen to
 keep driving.  Hold the left button to fire and press the right one to
-morph.
+morph.  The minus and plus keys change how fast the marker moves, and
+the setting is saved.
 
 The tank sets its own pace: the screen scrolls only when you drive
 forward.  It faces and fires the way it drives, in eight directions.  The ship

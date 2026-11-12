@@ -6,15 +6,22 @@
 #include "game.h"
 
 #define STEP (1.0 / 60)
-#define MOUSE_GAIN 2
 
 static SDL_GameController *pad;
+static int mouse_speed = 5;	/* half game pixels per count */
 
 /* The pointer is captured from the first click, and let go while paused. */
 static void grab_mouse(int on)
 {
 	SDL_SetRelativeMouseMode(on ? SDL_TRUE : SDL_FALSE);
 	SDL_GetRelativeMouseState(NULL, NULL);
+}
+
+/* 0 is what an unset setting reads as */
+static void set_mouse_speed(int speed)
+{
+	if (speed)
+		mouse_speed = SDL_clamp(speed, 1, 20);
 }
 
 static void read_input(struct input *in)
@@ -34,8 +41,8 @@ static void read_input(struct input *in)
 		int x, y;
 		Uint32 b = SDL_GetRelativeMouseState(&x, &y);
 
-		in->mx = x * MOUSE_GAIN / gfx_scale();
-		in->my = y * MOUSE_GAIN / gfx_scale();
+		in->mx = x * mouse_speed * 0.5f / gfx_scale();
+		in->my = y * mouse_speed * 0.5f / gfx_scale();
 		in->fire  |= !!(b & SDL_BUTTON_LMASK);
 		in->morph |= !!(b & SDL_BUTTON_RMASK);
 	}
@@ -77,32 +84,32 @@ static int usage(int rc)
 	return rc;
 }
 
-/* Returns the stored score, or stores score if it is not zero. */
-static int hiscore(int score)
+/* Returns the number stored under name, or stores value if it is not zero. */
+static int stored(const char *name, int value)
 {
 	char path[512], *dir = SDL_GetPrefPath("", "sector9");
 	FILE *fp;
 
 	if (!dir)
 		return 0;
-	snprintf(path, sizeof(path), "%shiscore", dir);
+	snprintf(path, sizeof(path), "%s%s", dir, name);
 	SDL_free(dir);
 
-	fp = fopen(path, score ? "w" : "r");
+	fp = fopen(path, value ? "w" : "r");
 	if (!fp)
 		return 0;
-	if (score)
-		fprintf(fp, "%d\n", score);
-	else if (fscanf(fp, "%d", &score) != 1)
-		score = 0;
+	if (value)
+		fprintf(fp, "%d\n", value);
+	else if (fscanf(fp, "%d", &value) != 1)
+		value = 0;
 	fclose(fp);
 
-	return score;
+	return value;
 }
 
 int main(int argc, char *argv[])
 {
-	int fullscreen = 0, demo = 0, frames = 0, row = 0, sector = 1, paused = 0, mouse = 0, run = 1;
+	int fullscreen = 0, demo = 0, frames = 0, row = 0, sector = 1, paused = 0, mouse = 0, notice = 0, hi = 0, run = 1;
 	const char *shot = NULL;
 	SDL_Window *win;
 	SDL_Renderer *ren;
@@ -157,7 +164,11 @@ int main(int argc, char *argv[])
 
 	gfx_init(ren);
 	sfx_init();
-	game_init(row, sector - 1, demo ? 0 : hiscore(0));
+	if (!demo) {
+		hi = stored("hiscore", 0);
+		set_mouse_speed(stored("mouse", 0));
+	}
+	game_init(row, sector - 1, hi);
 
 	prev = SDL_GetPerformanceCounter();
 	while (run) {
@@ -185,6 +196,17 @@ int main(int argc, char *argv[])
 			case SDLK_p:
 				paused = !paused;
 				grab_mouse(mouse && !paused);
+				break;
+			case SDLK_MINUS:
+			case SDLK_KP_MINUS:
+				set_mouse_speed(mouse_speed - 1);
+				notice = 90;
+				break;
+			case SDLK_EQUALS:
+			case SDLK_PLUS:
+			case SDLK_KP_PLUS:
+				set_mouse_speed(mouse_speed + 1);
+				notice = 90;
 				break;
 			case SDLK_F11:
 				fullscreen = !fullscreen;
@@ -225,6 +247,10 @@ int main(int argc, char *argv[])
 		game_draw();
 		if (paused)
 			gfx_text(-1, 110, 3, (SDL_Color){ 255, 255, 255, 255 }, "PAUSED");
+		if (notice) {
+			notice--;
+			gfx_text(-1, 14, 1, (SDL_Color){ 255, 255, 255, 255 }, "MOUSE SPEED %d", mouse_speed);
+		}
 		if (frames && --frames == 0) {
 			if (shot)
 				screenshot(ren, shot);
@@ -234,8 +260,10 @@ int main(int argc, char *argv[])
 		SDL_RenderPresent(ren);
 	}
 
-	if (!demo)
-		hiscore(game_hiscore());
+	if (!demo) {
+		stored("hiscore", game_hiscore());
+		stored("mouse", mouse_speed);
+	}
 
 	SDL_Quit();
 	return 0;
