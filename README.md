@@ -148,14 +148,18 @@ kind in a sector carries its name for a moment, and the voice says it.
 The same goes for the fortress.
 
 The voice is a set of samples in the `voice` directory next to the
-binary, one `.wav` per name.  They were made with
-[Piper](https://github.com/OHF-Voice/piper1-gpl) and SoX, using the
-voice `en_US-joe-medium` from
+binary, one `.wav` per name.  It is half human and half machine: a
+[Piper](https://github.com/OHF-Voice/piper1-gpl) voice, pitched down
+and mixed with a copy of itself run through a vocoder, with a faint
+echo.  The Piper voice is `en_US-joe-medium` from
 [piper-voices](https://huggingface.co/rhasspy/piper-voices), which is
-released as CC0.  `make voices VOICE=/path/to/en_US-joe-medium.onnx`
-makes them again, with that voice or another.  A missing file means
-silence, and any `.wav` with the right name will be played instead, if
-you would rather record your own.
+released as CC0.
+
+`make voices VOICE=/path/to/en_US-joe-medium.onnx` makes the samples
+again, with that voice or another; it needs Piper and SoX.  The recipe
+is in `tools/voice.sh`.  A missing file means silence, and any `.wav`
+with the right name will be played instead, if you would rather record
+your own.
 
 Music
 -----

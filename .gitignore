@@ -1,3 +1,4 @@
 *.o
 /sector9
 CLAUDE.md
+/tools/vocoder
