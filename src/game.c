@@ -10,6 +10,7 @@
 #define BLAST_LIFE 20
 #define MAX_SHAKE  10
 #define SCAN_GAP   60
+#define SPIRAL_TURN 0.07f	/* radians per frame */
 #define CORE_CYCLE 300	/* frames between swoops, and between rovers */
 #define MAX_ITEM   8
 #define MAX_HP     4
@@ -363,22 +364,13 @@ static void skip_spawns(void)
 		g.next_spawn++;
 }
 
-static void load_level(int sector)
-{
-	SDL_Color tint = level_boss(sector)->tint;
-
-	level_generate(&lv, sector);
-	gfx_tint(SPR_CORE, tint);
-	gfx_tint(SPR_POD, tint);
-}
-
 static void start_sector(int sector)
 {
 	struct player *p = &g.p;
 
 	g.sector = sector;
 	g.mouse = 0;
-	load_level(sector);
+	level_generate(&lv, sector);
 
 	memset(g.enemy, 0, sizeof(g.enemy));
 	memset(g.bullet, 0, sizeof(g.bullet));
@@ -698,7 +690,7 @@ static void core_move(struct enemy *e)
 {
 	int dive = e->t % CORE_CYCLE - 200;
 
-	e->x = SCREEN_W / 2 + 70 * sinf(e->t * 0.02f);
+	e->x = SCREEN_W / 2 + 46 * sinf(e->t * 0.02f);
 	e->y = CORE_Y;
 
 	switch (boss()->move) {
@@ -726,7 +718,7 @@ static void core_fire(struct enemy *e, float aim)
 	case FIRE_SPIRAL:
 		/* two arms that turn as they fire */
 		if (e->t % (9 - rank() / 3) == 0)
-			enemy_fire(e, e->t * 0.07f, 2, (float)M_PI);
+			enemy_fire(e, e->t * SPIRAL_TURN, 2, (float)M_PI);
 		break;
 	case FIRE_FAN:
 		/* two volleys at the player, close together */
@@ -1055,7 +1047,7 @@ static void next_lap(void)
 {
 	float shift;
 
-	load_level(++g.sector);
+	level_generate(&lv, ++g.sector);
 	shift = START_CAM - g.cam;
 	g.cam += shift;
 	g.p.y += shift;
@@ -1111,7 +1103,7 @@ static void update_fuse(void)
 static void show_title(void)
 {
 	g.sector = 0;
-	load_level(0);
+	level_generate(&lv, 0);
 	g.cam = START_CAM;
 	g.state = ST_TITLE;
 	sfx_music("title");
@@ -1404,7 +1396,7 @@ static void draw_enemies(int air, float cam)
 		const struct enemy *e = &g.enemy[i];
 		const struct etype_info *t = &et[e->type];
 		float y = e->y - cam, aim = aim_at(e) * 180 / (float)M_PI, ang = 0;
-		int mode = e->flash ? DRAW_FLASH : DRAW_NORMAL;
+		int mode = e->flash ? DRAW_FLASH : DRAW_NORMAL, spr = t->sprite;
 
 		if (!e->alive || e->delay || flies(e) != air)
 			continue;
@@ -1416,12 +1408,21 @@ static void draw_enemies(int air, float cam)
 			ang = aim;
 		}
 
+		if (e->type == E_POD)
+			spr = boss()->pod;
+		if (e->type == E_CORE) {
+			spr = boss()->core;
+			/* the ones that fire a spiral turn with it */
+			if (boss()->fire == FIRE_SPIRAL)
+				ang = e->t * SPIRAL_TURN * 180 / (float)M_PI;
+		}
+
 		/* whatever the ship can hit is up high and casts a shadow */
 		if (flies(e))
-			gfx_tinted(t->sprite, e->x + 4, y + 8, 1, SHADOW);
+			gfx_tinted(spr, e->x + 4, y + 8, 1, SHADOW);
 		else if (level_of(e) & L_AIR)
-			gfx_tinted(t->sprite, e->x + t->radius * 0.4f, y + t->radius * 0.7f, 1, SHADOW);
-		gfx_sprite(t->sprite, e->x, y, ang, 1, mode);
+			gfx_tinted(spr, e->x + t->radius * 0.4f, y + t->radius * 0.7f, 1, SHADOW);
+		gfx_sprite(spr, e->x, y, ang, 1, mode);
 		if (t->gun)
 			gfx_sprite(SPR_GUN, e->x, y, aim, t->gun, mode);
 

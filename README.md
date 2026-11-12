@@ -91,8 +91,8 @@ Each sector ends with a fortress.  Its core sits on the ground and is
 shielded until all of its towers are shot down from the air.  A bar at
 the top of the screen shows what the core has left.
 
-Every sector has its own fortress.  They have two, three or four
-towers.  Some cores sway from side to side, some weave, and some come
+Every sector has its own fortress, with a core and towers that look
+the part.  They have two, three or four towers.  Some cores sway from side to side, some weave, and some come
 swooping down the deck at you.  They fire rings of shots, turning
 spirals or volleys aimed at the tank, and two of them send out rovers.
 

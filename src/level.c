@@ -8,15 +8,15 @@ enum { SEG_OPEN, SEG_WALL, SEG_ROOF, SEG_MAZE, SEG_MAX };
 
 /* The laps beyond the last sector go through them again. */
 static const struct boss bosses[SECTORS] = {
-	{ "WARDEN",   2, MOVE_SWAY,  FIRE_RING,   0, { 255, 255, 255, 255 } },
-	{ "PINWHEEL", 2, MOVE_SWAY,  FIRE_SPIRAL, 0, { 150, 255, 200, 255 } },
-	{ "TRIDENT",  3, MOVE_EIGHT, FIRE_FAN,    0, { 255, 215, 130, 255 } },
-	{ "RAM",      2, MOVE_SWOOP, FIRE_RING,   0, { 255, 150, 150, 255 } },
-	{ "BROOD",    3, MOVE_SWAY,  FIRE_RING,   1, { 200, 255, 120, 255 } },
-	{ "CYCLONE",  4, MOVE_EIGHT, FIRE_SPIRAL, 0, { 140, 215, 255, 255 } },
-	{ "LANCER",   3, MOVE_SWOOP, FIRE_FAN,    0, { 255, 170, 255, 255 } },
-	{ "SWARM",    4, MOVE_SWAY,  FIRE_SPIRAL, 1, { 255, 255, 130, 255 } },
-	{ "OVERSEER", 4, MOVE_EIGHT, FIRE_RING,   0, { 255, 255, 255, 255 } },
+	{ "WARDEN",   SPR_CORE,  SPR_POD,  2, MOVE_SWAY,  FIRE_RING,   0 },
+	{ "PINWHEEL", SPR_CORE2, SPR_POD,  2, MOVE_SWAY,  FIRE_SPIRAL, 0 },
+	{ "TRIDENT",  SPR_CORE3, SPR_POD3, 3, MOVE_EIGHT, FIRE_FAN,    0 },
+	{ "RAM",      SPR_CORE4, SPR_POD,  2, MOVE_SWOOP, FIRE_RING,   0 },
+	{ "BROOD",    SPR_CORE5, SPR_POD3, 3, MOVE_SWAY,  FIRE_RING,   1 },
+	{ "CYCLONE",  SPR_CORE6, SPR_POD4, 4, MOVE_EIGHT, FIRE_SPIRAL, 0 },
+	{ "LANCER",   SPR_CORE7, SPR_POD3, 3, MOVE_SWOOP, FIRE_FAN,    0 },
+	{ "SWARM",    SPR_CORE8, SPR_POD4, 4, MOVE_SWAY,  FIRE_SPIRAL, 1 },
+	{ "OVERSEER", SPR_CORE9, SPR_POD4, 4, MOVE_EIGHT, FIRE_RING,   0 },
 };
 
 static unsigned seed;

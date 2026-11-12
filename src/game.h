@@ -17,8 +17,11 @@
 enum tile   { T_FLOOR, T_WALL, T_ROOF, T_VOID };
 enum etype  { E_TURRET, E_CRAWLER, E_DRONE, E_DART, E_POD, E_CORE, E_ROVER, E_GUNSHIP, E_HEAVY };
 enum sprite {
-	SPR_SHIP, SPR_TANK, SPR_TURRET, SPR_GUN, SPR_POD, SPR_CRAWLER, SPR_DRONE, SPR_DART, SPR_CORE, SPR_ROVER,
-	SPR_GUNSHIP, SPR_HEAVY, SPR_FUSED, SPR_BUDDY, SPR_CAPSULE, SPR_ORB, SPR_MAX
+	SPR_SHIP, SPR_TANK, SPR_TURRET, SPR_GUN, SPR_CRAWLER, SPR_DRONE, SPR_DART, SPR_ROVER,
+	SPR_GUNSHIP, SPR_HEAVY, SPR_FUSED, SPR_BUDDY, SPR_CAPSULE, SPR_ORB,
+	SPR_POD, SPR_POD3, SPR_POD4,
+	SPR_CORE, SPR_CORE2, SPR_CORE3, SPR_CORE4, SPR_CORE5, SPR_CORE6, SPR_CORE7, SPR_CORE8, SPR_CORE9,
+	SPR_MAX
 };
 enum sfx    { SFX_SHOT, SFX_HIT, SFX_BOOM, SFX_MORPH, SFX_DENY, SFX_PICKUP, SFX_HURT, SFX_MAX };
 enum draw   { DRAW_NORMAL, DRAW_FLASH };
@@ -50,8 +53,8 @@ struct level {
 /* The fortress at the end of a sector: towers to shoot down, then the core. */
 struct boss {
 	const char *name;
+	int         core, pod;	/* sprites */
 	int         pods, move, fire, brood;
-	SDL_Color   tint;
 };
 
 /* Sectors from SECTORS on are laps of the open space beyond the last one. */
@@ -64,8 +67,6 @@ float gfx_scale(void);
 /* Coordinates are game pixels, drawn at the resolution of the window. */
 void gfx_sprite(int id, float x, float y, double angle, float scale, int mode);
 void gfx_tinted(int id, float x, float y, float scale, SDL_Color c);
-/* Colours a sprite from now on. */
-void gfx_tint(int id, SDL_Color c);
 void gfx_disc(float x, float y, float r, SDL_Color c);
 /* Soft light added on top of what is there. */
 void gfx_glow(float x, float y, float r, SDL_Color c);

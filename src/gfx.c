@@ -46,7 +46,6 @@ struct font {
 
 static SDL_Renderer *ren;
 static SDL_Texture  *tex[SPR_MAX];
-static SDL_Color     tint[SPR_MAX];
 static SDL_Texture  *plate[THEME_MAX][PLATE_MAX];
 static SDL_Texture  *logo, *shine, *glow;
 static struct font   font[FONTS];
@@ -220,16 +219,167 @@ static const struct shape orb[] = {
 	{ 0 }
 };
 
+/* Round tower, for the fortresses with three. */
+static const struct shape pod3[] = {
+	{ 'c', 'd', 0, { 0, 0, 13.8f } },
+	{ 'c', 'O', 0, { 0, 0, 11.8f } },
+	{ 'c', 'g', 1, { 9, 0, 1 } },
+	{ 'c', 'g', 0, { 0, -9, 1 } },
+	{ 'c', 'g', 0, { 0, 9, 1 } },
+	{ 'c', 'd', 0, { 0, 0, 7.6f } },
+	{ 'c', 'y', 0, { 0, 0, 6 } },
+	{ 'c', 'o', 0, { 0, 0, 3.6f } },
+	{ 0 }
+};
+
+/* Armoured tower with a cross, for the fortresses with four. */
+static const struct shape pod4[] = {
+	{ 'b', 'd', 0, { 0, 0, 13.6f, 13.6f, 2 } },
+	{ 'b', 'B', 0, { 0, 0, 11.6f, 11.6f, 1.2f } },
+	{ 'b', 'd', 0, { 0, 0, 11.6f, 2.6f, 0.4f } },
+	{ 'b', 'd', 0, { 0, 0, 2.6f, 11.6f, 0.4f } },
+	{ 'c', 'd', 0, { 0, 0, 8.4f } },
+	{ 'c', 'c', 0, { 0, 0, 6.6f } },
+	{ 'c', 'b', 0, { 0, 0, 4 } },
+	{ 0 }
+};
+
+/* Pinwheel: four blades around a hub. */
+static const struct shape core2[] = {
+	{ 'p', 'T', 0, { 3, 2, -8, 21, -12, 9, 3 } },
+	{ 'p', 'T', 0, { 3, 8, 2, 12, 21, -3, 9 } },
+	{ 'p', 'T', 0, { 3, -2, 8, -21, 12, -9, -3 } },
+	{ 'p', 'T', 0, { 3, -8, -2, -12, -21, 3, -9 } },
+	{ 'c', 'T', 0, { 0, 0, 12.5f } },
+	{ 'c', 'd', 0, { 0, 0, 9.6f } },
+	{ 'c', 't', 0, { 0, 0, 7.8f } },
+	{ 'c', 'c', 0, { 0, 0, 4.6f } },
+	{ 'c', 'W', 0, { 0, 0, 1.8f } },
+	{ 0 }
+};
+
+/* Trident: a shield with three prongs pointing down the deck. */
+static const struct shape core3[] = {
+	{ 'p', 'g', 0, { 3, -3.4f, 6, 3.4f, 6, 0, 22.5f } },
+	{ 'p', 'g', 1, { 3, 8.5f, 4, 14.5f, 4, 12.5f, 19 } },
+	{ 'l', 'd', 1, { 18.5f, -13, 18.5f, 3, 2.6f } },
+	{ 'b', 'O', 0, { 0, -5, 17, 11, 4.5f } },
+	{ 'b', 'o', 0, { 0, -5, 14, 8, 3 } },
+	{ 'c', 'd', 0, { 0, -5, 7.6f } },
+	{ 'c', 'r', 0, { 0, -5, 5.8f } },
+	{ 'c', 'y', 0, { 0, -5, 3 } },
+	{ 0 }
+};
+
+/* Ram: a horned wedge. */
+static const struct shape core4[] = {
+	{ 'p', 'g', 1, { 3, 9, -13, 17, -22.5f, 19, -13 } },
+	{ 'p', 'R', 0, { 5, -18, -14, 18, -14, 20.5f, 0, 0, 22.5f, -20.5f, 0 } },
+	{ 'p', 'r', 0, { 5, -13, -10, 13, -10, 14.5f, -1, 0, 15, -14.5f, -1 } },
+	{ 'l', 'R', 0, { 0, -8, 0, 10, 1.3f } },
+	{ 'c', 'd', 1, { 6.4f, -3.5f, 3.6f } },
+	{ 'c', 'y', 1, { 6.4f, -3.5f, 2.5f } },
+	{ 'c', 'W', 1, { 6.4f, -3.5f, 1 } },
+	{ 0 }
+};
+
+/* Brood: a cluster of sacs around an eye. */
+static const struct shape core5[] = {
+	{ 'c', 'H', 1, { 13, 7, 8.5f } },
+	{ 'c', 'H', 1, { 11.5f, -12, 7.5f } },
+	{ 'c', 'H', 0, { 0, 14, 8.5f } },
+	{ 'c', 'H', 0, { 0, -2, 15.5f } },
+	{ 'c', 'G', 1, { 13, 7, 6 } },
+	{ 'c', 'G', 1, { 11.5f, -12, 5 } },
+	{ 'c', 'G', 0, { 0, 14, 6 } },
+	{ 'c', 'G', 0, { 0, -2, 12.5f } },
+	{ 'c', 'L', 1, { 13, 7, 3.2f } },
+	{ 'c', 'L', 1, { 11.5f, -12, 2.4f } },
+	{ 'c', 'L', 0, { 0, 14, 3.2f } },
+	{ 'c', 'd', 0, { 0, -2, 6.6f } },
+	{ 'c', 'y', 0, { 0, -2, 4.8f } },
+	{ 'c', 'r', 0, { 0, -2, 2.2f } },
+	{ 0 }
+};
+
+/* Cyclone: rings and vanes. */
+static const struct shape core6[] = {
+	{ 'c', 'B', 0, { 0, 0, 20.5f } },
+	{ 'l', 'b', 0, { -18.5f, 0, 18.5f, 0, 2.2f } },
+	{ 'l', 'b', 1, { -9.2f, -16, 9.2f, 16, 2.2f } },
+	{ 'c', 'd', 0, { 0, 0, 13.4f } },
+	{ 'c', 'b', 0, { 0, 0, 11.4f } },
+	{ 'c', 'c', 0, { 0, 0, 7.8f } },
+	{ 'c', 'B', 0, { 0, 0, 5 } },
+	{ 'c', 'W', 0, { 0, 0, 2.4f } },
+	{ 0 }
+};
+
+/* Lancer: a long blade with short wings. */
+static const struct shape core7[] = {
+	{ 'l', 'g', 1, { 19.5f, -4, 19.5f, 11, 1.7f } },
+	{ 'p', 'M', 1, { 4, 5, -13, 21.5f, -5, 21.5f, 2, 5, 3 } },
+	{ 'p', 'm', 0, { 5, -5.5f, -21, 5.5f, -21, 7.5f, 4, 0, 23, -7.5f, 4 } },
+	{ 'l', 'M', 0, { 0, -16, 0, 13, 1.5f } },
+	{ 'c', 'd', 0, { 0, -9, 4.4f } },
+	{ 'c', 'y', 0, { 0, -9, 3 } },
+	{ 'c', 'W', 0, { 0, -9, 1.2f } },
+	{ 0 }
+};
+
+/* Swarm: three cells on a plate. */
+static const struct shape core8[] = {
+	{ 'p', 'O', 0, { 5, 0, -23, 21.5f, 9, 13, 20.5f, -13, 20.5f, -21.5f, 9 } },
+	{ 'c', 'd', 0, { 0, -11, 9.8f } },
+	{ 'c', 'd', 1, { 10.6f, 7.5f, 9.8f } },
+	{ 'c', 'y', 0, { 0, -11, 8 } },
+	{ 'c', 'y', 1, { 10.6f, 7.5f, 8 } },
+	{ 'c', 'o', 0, { 0, -11, 5 } },
+	{ 'c', 'o', 1, { 10.6f, 7.5f, 5 } },
+	{ 'c', 'd', 0, { 0, -11, 2.4f } },
+	{ 'c', 'd', 1, { 10.6f, 7.5f, 2.4f } },
+	{ 'c', 'W', 0, { 0, 1.5f, 1.8f } },
+	{ 0 }
+};
+
+/* Overseer: an eye in a studded ring. */
+static const struct shape core9[] = {
+	{ 'b', 'R', 1, { 19, 0, 4, 6.5f, 1.6f } },
+	{ 'b', 'R', 0, { 0, -19, 6.5f, 4, 1.6f } },
+	{ 'b', 'R', 0, { 0, 19, 6.5f, 4, 1.6f } },
+	{ 'c', 'R', 1, { 14, -14, 4.6f } },
+	{ 'c', 'R', 1, { 14, 14, 4.6f } },
+	{ 'c', 'd', 0, { 0, 0, 19.5f } },
+	{ 'c', 'g', 1, { 14, -14, 1.6f } },
+	{ 'c', 'g', 1, { 14, 14, 1.6f } },
+	{ 'c', 'R', 0, { 0, 0, 16 } },
+	{ 'c', 'w', 0, { 0, 0, 13.4f } },
+	{ 'c', 'r', 0, { 0, 0, 8.8f } },
+	{ 'c', 'o', 0, { 0, 0, 6.4f } },
+	{ 'b', 'k', 0, { 0, 0, 1.9f, 6, 1.6f } },
+	{ 0 }
+};
+
 static const struct model model[SPR_MAX] = {
 	[SPR_SHIP]    = {  9, 0.5f, 0, ship },
 	[SPR_TANK]    = {  9, 0.5f, 0, tank },
 	[SPR_TURRET]  = {  8, 0.5f, 0, turret },
 	[SPR_GUN]     = {  8, 0.4f, 0, gun },
 	[SPR_POD]     = { 15, 0.6f, 0, pod },
+	[SPR_POD3]    = { 15, 0.6f, 0, pod3 },
+	[SPR_POD4]    = { 15, 0.6f, 0, pod4 },
 	[SPR_CRAWLER] = {  9, 0.5f, 0, crawler },
 	[SPR_DRONE]   = {  8, 0.5f, 0, drone },
 	[SPR_DART]    = {  9, 0.5f, 0, dart },
 	[SPR_CORE]    = { 24, 0.7f, 0, core },
+	[SPR_CORE2]   = { 24, 0.7f, 0, core2 },
+	[SPR_CORE3]   = { 24, 0.7f, 0, core3 },
+	[SPR_CORE4]   = { 24, 0.7f, 0, core4 },
+	[SPR_CORE5]   = { 24, 0.7f, 0, core5 },
+	[SPR_CORE6]   = { 24, 0.7f, 0, core6 },
+	[SPR_CORE7]   = { 24, 0.7f, 0, core7 },
+	[SPR_CORE8]   = { 24, 0.7f, 0, core8 },
+	[SPR_CORE9]   = { 24, 0.7f, 0, core9 },
 	[SPR_ROVER]   = {  8, 0.5f, 0, rover },
 	[SPR_GUNSHIP] = { 13, 0.5f, 0, gunship },
 	[SPR_HEAVY]   = { 11, 0.5f, 0, heavy },
@@ -256,6 +406,13 @@ static struct rgb pal(char ch)
 	case 'H': return (struct rgb){  44, 112,  64 };
 	case 'p': return (struct rgb){ 150,  84, 196 };
 	case 'P': return (struct rgb){ 100,  56, 140 };
+	case 't': return (struct rgb){  50, 180, 170 };
+	case 'T': return (struct rgb){  30, 110, 118 };
+	case 'm': return (struct rgb){ 222,  80, 170 };
+	case 'M': return (struct rgb){ 140,  44, 120 };
+	case 'B': return (struct rgb){  34,  60, 140 };
+	case 'O': return (struct rgb){ 160,  92,  36 };
+	case 'L': return (struct rgb){ 180, 226,  80 };
 	default:  return (struct rgb){  14,  16,  24 };
 	}
 }
@@ -745,10 +902,8 @@ void gfx_init(SDL_Renderer *r)
 		for (int i = 0; i < PLATE_MAX; i++)
 			plate[theme][i] = make_plate(i, theme);
 	}
-	for (int i = 0; i < SPR_MAX; i++) {
+	for (int i = 0; i < SPR_MAX; i++)
 		tex[i] = make_sprite(&model[i]);
-		tint[i] = (SDL_Color){ 255, 255, 255, 255 };
-	}
 	logo = make_logo();
 	glow = make_glow();
 }
@@ -777,14 +932,8 @@ void gfx_tinted(int id, float x, float y, float scale, SDL_Color c)
 	SDL_SetTextureColorMod(tex[id], c.r, c.g, c.b);
 	SDL_SetTextureAlphaMod(tex[id], c.a);
 	draw(id, x, y, 0, scale);
+	SDL_SetTextureColorMod(tex[id], 255, 255, 255);
 	SDL_SetTextureAlphaMod(tex[id], 255);
-	SDL_SetTextureColorMod(tex[id], tint[id].r, tint[id].g, tint[id].b);
-}
-
-void gfx_tint(int id, SDL_Color c)
-{
-	tint[id] = c;
-	SDL_SetTextureColorMod(tex[id], c.r, c.g, c.b);
 }
 
 void gfx_disc(float x, float y, float r, SDL_Color c)
