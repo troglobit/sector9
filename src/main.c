@@ -239,7 +239,8 @@ int main(int argc, char *argv[])
 
 			switch (ev.key.keysym.sym) {
 			case SDLK_ESCAPE:
-				if (game_escape())
+				/* the demo would start the next game right away */
+				if (demo || game_escape())
 					run = 0;
 				paused = 0;
 				grab_mouse(mouse);
