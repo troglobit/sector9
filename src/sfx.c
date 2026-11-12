@@ -28,6 +28,7 @@ static const struct voice preset[SFX_MAX] = {
 	[SFX_DENY]   = PRESET( 110, 1.00000f, 0.40f, 0.99940f, 0),
 	[SFX_PICKUP] = PRESET( 660, 1.00020f, 0.40f, 0.99960f, 0),
 	[SFX_HURT]   = PRESET( 700, 0.99990f, 0.70f, 0.99970f, 1),
+	[SFX_ALARM]  = PRESET( 380, 1.00012f, 0.50f, 0.99988f, 0),
 };
 
 static struct voice voice[VOICES];

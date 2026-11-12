@@ -10,6 +10,8 @@
 #define BLAST_LIFE 20
 #define MAX_SHAKE  10
 #define SCAN_GAP   60
+#define INTRO_FRAMES 210	/* the fortress makes its entrance */
+#define INTRO_HOOT   36	/* frames between the three alarm calls */
 #define NAME_FRAMES 150	/* how long a newcomer carries its name */
 #define SPIRAL_TURN 0.07f	/* radians per frame */
 #define CORE_CYCLE 300	/* frames between swoops, and between rovers */
@@ -53,6 +55,7 @@ static struct {
 	float         mx, my;
 	int           mouse, direct, bot;
 	unsigned      met;		/* enemy types seen in this sector */
+	int           intro;
 	int           pods, next_spawn, start_row, start_sector, flash, shake;
 	struct axis   wx, wy;
 	float         cam, fx, fy;
@@ -206,6 +209,14 @@ static float player_angle(void)
 static float aim_at(const struct enemy *e)
 {
 	return atan2f(g.p.x - e->x, e->y - g.p.y);
+}
+
+/* The intro opens with three alarm calls: the frame within one, or -1. */
+static int hoot(void)
+{
+	int t = INTRO_FRAMES - g.intro;
+
+	return g.intro && t < 3 * INTRO_HOOT ? t % INTRO_HOOT : -1;
 }
 
 static const char *name_of(const struct enemy *e)
@@ -384,6 +395,7 @@ static void start_sector(int sector)
 	g.sector = sector;
 	g.mouse = 0;
 	g.met = 0;
+	g.intro = 0;
 	level_generate(&lv, sector);
 	sfx_say(beyond() ? "BEYOND" : sector_name[sector]);
 
@@ -782,6 +794,8 @@ static void update_enemies(void)
 			g.met |= 1u << e->type;
 			e->named = NAME_FRAMES;
 			sfx_say(name_of(e));
+			if (e->type == E_CORE)
+				g.intro = INTRO_FRAMES;
 		}
 		aim = aim_at(e);
 
@@ -820,13 +834,16 @@ static void update_enemies(void)
 			break;
 
 		case E_POD:
-			if (vis && e->t % 90 == 0)
+			if (vis && !g.intro && e->t % 90 == 0)
 				enemy_fire(e, aim, g.sector < 2 ? 1 : t->shots, 0.3f);
 			break;
 
 		case E_CORE:
 			core_move(e);
-			if (!vis || shielded(e))
+			if (hoot() >= 0 && hoot() < 6)
+				e->flash = 2;
+			/* nobody fires while the fortress makes its entrance */
+			if (!vis || shielded(e) || g.intro)
 				break;
 			if (e->lifted && e->t % 50 == 0)
 				enemy_fire(e, aim, 5, 0.25f);
@@ -1174,6 +1191,13 @@ void game_update(const struct input *in)
 		g.flash--;
 	if (g.shake)
 		g.shake--;
+	if (g.intro) {
+		if (hoot() == 0) {
+			sfx_play(SFX_ALARM);
+			g.shake = SDL_max(g.shake, 6);
+		}
+		g.intro--;
+	}
 
 	/* one-button joystick: a quick wiggle on either axis morphs */
 	if (!g.bot) {
@@ -1580,6 +1604,33 @@ static void draw_blast(const struct part *q, float cam)
 		gfx_disc(q->x, y, r * (0.3f - 0.8f * k), WHITE);
 }
 
+/* The fortress is announced: bars close in, its name sweeps across in a band. */
+static void draw_intro(void)
+{
+	enum { BAND = 148 };	/* below the fortress, which stays in view */
+	const char *name = boss()->name;
+	int t = INTRO_FRAMES - g.intro;
+	float in = SDL_min(t, 16) / 16.0f, out = SDL_min(g.intro, 16) / 16.0f, k = in * out;
+	float w = strlen(name) * 16 - 4;
+	float x = (SCREEN_W - w) / 2 + (out - in) * SCREEN_W;
+	SDL_Color line = RED;
+
+	line.a = 255 * k;
+	gfx_rect(0, 10, SCREEN_W, 14 * k, DARK);
+	gfx_rect(0, SCREEN_H - 14 * k, SCREEN_W, 14 * k, DARK);
+	gfx_rect(0, BAND, SCREEN_W, 56, (SDL_Color){ 0, 0, 0, 180 * k });
+	gfx_rect(0, BAND, SCREEN_W, 1, line);
+	gfx_rect(0, BAND + 55, SCREEN_W, 1, line);
+	gfx_glow(SCREEN_W / 2, BAND + 28, 110, (SDL_Color){ 255, 110, 30, 110 * k });
+
+	if ((t / 8) & 1)
+		gfx_text(-1, BAND + 5, 1, RED, "WARNING");
+	gfx_text(x, BAND + 16, 4, YELLOW, "%s", name);
+	if (k == 1)
+		gfx_text(-1, BAND + 44, 1, WHITE, beyond() ? "FORTRESS OF LAP %d" : "FORTRESS OF SECTOR %d",
+			 beyond() ? lap() + 1 : g.sector + 1);
+}
+
 static void draw_hud(void)
 {
 	const struct player *p = &g.p;
@@ -1606,11 +1657,14 @@ static void draw_hud(void)
 
 		if (!e->alive || e->type != E_CORE)
 			continue;
+		/* the bar fills up during the intro */
 		gfx_rect(SCREEN_W / 2 - 51, 12, 102, 4, DARK);
-		gfx_rect(SCREEN_W / 2 - 50, 13, 100.0f * e->hp / e->full, 2, shielded(e) ? CYAN : RED);
-		if (e->named & 16)
-			gfx_text(-1, 20, 2, YELLOW, "%s", boss()->name);
+		gfx_rect(SCREEN_W / 2 - 50, 13, 100.0f * e->hp / e->full * (1 - (float)g.intro / INTRO_FRAMES), 2,
+			 shielded(e) ? CYAN : RED);
+		if (!g.intro)
+			gfx_text(-1, 18, 1, YELLOW, "%s", boss()->name);
 	}
+
 }
 
 void game_draw(void)
@@ -1671,6 +1725,8 @@ void game_draw(void)
 		gfx_rect(0, 0, SCREEN_W, SCREEN_H, (SDL_Color){ 255, 255, 255, g.flash * 10 });
 
 	draw_hud();
+	if (g.intro)
+		draw_intro();
 
 	if (g.state == ST_CLEAR) {
 		gfx_text(-1, 90, 3, YELLOW, "SECTOR %d CLEAR", g.sector + 1);
