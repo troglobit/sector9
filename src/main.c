@@ -80,9 +80,10 @@ static void screenshot(SDL_Renderer *ren, const char *file)
 static int usage(int rc)
 {
 	fprintf(rc ? stderr : stdout,
-		"Usage: sector9 [-bfhm]\n"
+		"Usage: sector9 [-bdfhm]\n"
 		"  -b, --boss N      Start at the fortress of sector N, to look at it or practise;\n"
 		"                    10 to 18 are the laps beyond sector nine\n"
+		"  -d, --demo        Let the game play itself\n"
 		"  -f, --fullscreen  Start in fullscreen\n"
 		"  -h, --help        Show this help text\n"
 		"  -m, --mouse MODE  Mouse steering: marker (the craft heads for a marker)\n"
@@ -115,14 +116,14 @@ static int stored(const char *name, int value)
 
 int main(int argc, char *argv[])
 {
-	/* the long-only options are test hooks: scripted player, frame limit, screenshot, start row and sector */
-	enum { OPT_DEMO = 256, OPT_FRAMES, OPT_SHOT, OPT_ROW, OPT_SECTOR };
+	/* the long-only options are test hooks: frame limit, screenshot, start row and sector */
+	enum { OPT_FRAMES = 256, OPT_SHOT, OPT_ROW, OPT_SECTOR };
 	static const struct option opts[] = {
 		{ "boss",       required_argument, NULL, 'b' },
+		{ "demo",       no_argument,       NULL, 'd' },
 		{ "fullscreen", no_argument,       NULL, 'f' },
 		{ "help",       no_argument,       NULL, 'h' },
 		{ "mouse",      required_argument, NULL, 'm' },
-		{ "demo",       no_argument,       NULL, OPT_DEMO },
 		{ "frames",     required_argument, NULL, OPT_FRAMES },
 		{ "shot",       required_argument, NULL, OPT_SHOT },
 		{ "row",        required_argument, NULL, OPT_ROW },
@@ -138,11 +139,14 @@ int main(int argc, char *argv[])
 	Uint64 prev;
 	double acc = 0;
 
-	while ((c = getopt_long(argc, argv, "b:fhm:", opts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "b:dfhm:", opts, NULL)) != -1) {
 		switch (c) {
 		case 'b':
 			sector = atoi(optarg);
 			row = BOSS_ROW;
+			break;
+		case 'd':
+			demo = 1;
 			break;
 		case 'f':
 			fullscreen = 1;
@@ -156,9 +160,6 @@ int main(int argc, char *argv[])
 				direct = 1;
 			else
 				return usage(1);
-			break;
-		case OPT_DEMO:
-			demo = 1;
 			break;
 		case OPT_FRAMES:
 			frames = atoi(optarg);

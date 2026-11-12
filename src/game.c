@@ -28,6 +28,7 @@
 #define HALT_Y     100
 #define MARK_NEAR  3
 #define MARK_REACH 16
+#define BOT_IDLE   480	/* frames without scoring before the demo tries the other shape */
 #define LIFE_SCORE 20000
 #define HOVER_Y    56
 #define FUSE_FRAMES 480
@@ -48,7 +49,7 @@ struct axis   { int sign, seen, flip; };
 static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
 	float         mx, my;
-	int           mouse, direct;
+	int           mouse, direct, bot;
 	int           pods, next_spawn, start_row, start_sector, flash, shake;
 	struct axis   wx, wy;
 	float         cam, fx, fy;
@@ -201,6 +202,11 @@ static float player_angle(void)
 static float aim_at(const struct enemy *e)
 {
 	return atan2f(g.p.x - e->x, e->y - g.p.y);
+}
+
+static int onscreen(const struct enemy *e)
+{
+	return e->y > g.cam + 12 && e->y < g.cam + SCREEN_H;
 }
 
 static int shielded(const struct enemy *e)
@@ -524,6 +530,14 @@ static void player_fire(void)
 	sfx_play(SFX_SHOT);
 }
 
+/* The nearest of eight directions to a heading. */
+static void octant(float x, float y, int *dx, int *dy)
+{
+	/* tan 22.5: an axis counts when within an octant of the heading */
+	*dx = (fabsf(x) > 0.4142f * fabsf(y)) * (x > 0 ? 1 : -1);
+	*dy = (fabsf(y) > 0.4142f * fabsf(x)) * (y > 0 ? 1 : -1);
+}
+
 static void update_player(const struct input *in, int morph)
 {
 	static const int facing[3][3] = { { 7, 0, 1 }, { 6, -1, 2 }, { 5, 4, 3 } };
@@ -591,9 +605,7 @@ static void update_player(const struct input *in, int morph)
 			vx = tx / len * SDL_min(len, speed);
 			vy = ty / len * SDL_min(len, speed);
 		} else if (!p->ship && len > MARK_NEAR) {
-			/* tan 22.5: an axis counts when within an octant of the heading */
-			dx = (fabsf(tx) > 0.4142f * fabsf(ty)) * (tx > 0 ? 1 : -1);
-			dy = (fabsf(ty) > 0.4142f * fabsf(tx)) * (ty > 0 ? 1 : -1);
+			octant(tx, ty, &dx, &dy);
 		}
 	}
 
@@ -755,7 +767,7 @@ static void update_enemies(void)
 		if (e->flash)
 			e->flash--;
 
-		vis = e->y > g.cam + 12 && e->y < g.cam + SCREEN_H;
+		vis = onscreen(e);
 		aim = aim_at(e);
 
 		switch (e->type) {
@@ -1148,8 +1160,10 @@ void game_update(const struct input *in)
 		g.shake--;
 
 	/* one-button joystick: a quick wiggle on either axis morphs */
-	morph |= wiggle(&g.wx, in->right - in->left);
-	morph |= wiggle(&g.wy, in->down - in->up);
+	if (!g.bot) {
+		morph |= wiggle(&g.wx, in->right - in->left);
+		morph |= wiggle(&g.wy, in->down - in->up);
+	}
 
 	switch (g.state) {
 	case ST_TITLE:
@@ -1192,21 +1206,127 @@ void game_update(const struct input *in)
 	}
 }
 
-/* Test driver: push forward, morph when the way is blocked. */
+/* The player of --demo.  It takes the shape that has something to shoot,
+ * lines up with the nearest target, steps aside from shots, picks up
+ * capsules, and changes shape when the way ahead is shut. */
 void game_autopilot(struct input *in)
 {
 	static float last;
-	static int stuck;
+	static int stuck, cool, idle, seen, side = 1;
+	const struct player *p = &g.p;
+	const struct enemy *aim = NULL;
+	const struct item *item = NULL;
+	float sy = p->y - g.cam, tx = SCREEN_W / 2, ty = SCREEN_H - 60, best = 1e9f;
+	int other = 0, want = 0, shut = 0, dx, dy;
+
+	memset(in, 0, sizeof(*in));
+	g.bot = 1;
+	if (g.state != ST_PLAY) {
+		in->fire = g.frame & 1;
+		return;
+	}
 
 	stuck = g.cam == last ? stuck + 1 : 0;
 	last = g.cam;
+	idle = g.score == seen ? idle + 1 : 0;
+	seen = g.score;
+	if (cool)
+		cool--;
+	in->fire = 1;
 
-	memset(in, 0, sizeof(*in));
-	in->up = 1;
-	in->fire = g.state != ST_PLAY ? g.frame & 1 : 1;
-	in->left = (g.frame / 50) & 1;
-	in->right = !in->left;
-	in->morph = stuck % 45 == 31;
+	for (int i = 0; i < MAX_ENEMY; i++) {
+		const struct enemy *e = &g.enemy[i];
+		float y = e->y - g.cam, d = fabsf(e->x - p->x) + fabsf(y - sy) * 0.5f;
+
+		if (!e->alive || e->delay || shielded(e) || !onscreen(e))
+			continue;
+		if (!(level_of(e) & player_level())) {
+			other = 1;
+		} else if (d < best) {
+			best = d;
+			aim = e;
+			/* the ship fires up from below */
+			tx = e->x;
+			ty = SDL_max(y + 70, SCREEN_H - 80);
+		}
+	}
+
+	for (int i = 0; i < MAX_ITEM && !aim; i++) {
+		if (g.item[i].alive && !g.item[i].rise)
+			item = &g.item[i];
+	}
+	if (item) {
+		tx = item->x;
+		ty = item->y - g.cam;
+	} else if (!aim && !p->ship) {
+		/* nothing to do here: the tank drives on, the ship lets the scroll carry it */
+		ty = 0;
+	}
+
+	dx = fabsf(tx - p->x) > MARK_NEAR ? (tx > p->x ? 1 : -1) : 0;
+	dy = fabsf(ty - sy) > MARK_NEAR ? (ty > sy ? 1 : -1) : 0;
+
+	/* the tank fires the way it faces, so it drives at its target and stops short */
+	if (aim && !p->ship) {
+		dx = dy = 0;
+		if (hypotf(aim->x - p->x, aim->y - p->y) > et[aim->type].radius + 24)
+			octant(aim->x - p->x, aim->y - p->y, &dx, &dy);
+	}
+
+	for (int i = 0; i < MAX_BULLET; i++) {
+		const struct bullet *b = &g.bullet[i];
+		float bx = b->x - p->x, by = b->y - p->y;
+
+		if (!b->alive || b->friendly || !(b->level & player_level()))
+			continue;
+		/* on its way here and close: step off its line, away from the edges */
+		if (fabsf(bx) < 14 && fabsf(by) < 44 && bx * b->vx + by * b->vy < 0) {
+			if (p->x < 24)
+				dx = 1;
+			else if (p->x > SCREEN_W - 24)
+				dx = -1;
+			else
+				dx = bx > 0 ? -1 : 1;
+		}
+	}
+
+	/* a tank that drives into a wall slides along it, to and fro */
+	if (!p->ship && dy < 0 && box_hits(p->x, p->y - 3, T_WALL)) {
+		if (p->x < 12 || p->x > SCREEN_W - 12 || box_hits(p->x + side * 3, p->y, T_WALL))
+			side = -side;
+		dx = side;
+	}
+
+	in->left = dx < 0;
+	in->right = dx > 0;
+	in->up = dy < 0;
+	in->down = dy > 0;
+
+	/* change shape for targets only the other one can hit, for the towers of
+	 * a fortress, which are the ship's, and when getting nowhere */
+	if ((!aim && other) || (g.pods && !p->ship))
+		want = 1;
+	if (idle > BOT_IDLE) {
+		want = 1;
+		idle = 0;
+	}
+	/* the way is shut: a roof halts the ship, a wall the tank */
+	if (g.cam > 0 && stuck > (p->ship ? 40 : 240))
+		want = shut = 1;
+	if (!want || cool || p->fused)
+		return;
+	/* a halted ship first flies up to the roof, past any wall, and lands there */
+	if (box_hits(p->x, p->y, p->ship ? T_WALL : T_ROOF) || (shut && p->ship && sy > HALT_Y + 22)) {
+		in->up = 1;
+		in->down = 0;
+		return;
+	}
+	/* stand still for it, a step could end over a tile that refuses the change */
+	in->left = in->right = in->up = in->down = 0;
+	in->morph = 1;
+	/* having taken off at a wall, stay up long enough to clear it */
+	cool = shut && !p->ship ? 300 : 90;
+	stuck = 0;
 }
 
 static void draw_stars(void)

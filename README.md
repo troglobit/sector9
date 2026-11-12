@@ -111,6 +111,8 @@ spirals or volleys aimed at the tank, and two of them send out rovers.
 `sector9 --boss N` starts at the fortress of sector N, to have a look
 at it or to practise.  10 to 18 are the laps beyond sector nine.
 
+`sector9 --demo` lets the game play itself.  Esc ends it.
+
 There are nine sectors.  The first ones are short and leave out the
 harder enemies.  Later sectors are longer, bring in gunships and heavy
 tanks, and everything in them fires faster.  Every 20,000 points earns
