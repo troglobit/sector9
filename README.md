@@ -1,5 +1,6 @@
-Sector Nine
-===========
+<p align="center">
+  <img src="screenshots/title.png" width="640" alt="The title screen of Sector Nine">
+</p>
 
 A vertically scrolling shooter for Linux in the 16-bit tradition.  You
 fly one craft with two shapes: a tank that drives on the ground and a
@@ -11,6 +12,29 @@ You switch back and forth to get through a sector.
 All graphics and sound effects are generated in code.  Sprites, tiles
 and text are drawn from shapes at the resolution of the window, so the
 picture stays sharp at any size.
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="screenshots/play.png" alt="The ship shooting down a gun tower">
+      <br><sub>The ship takes on aircraft and the gun towers on their blocks</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="screenshots/tank.png" alt="The tank under an energy roof">
+      <br><sub>Under an energy roof only the tank gets through</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="screenshots/boss.png" alt="The fortress of sector one is announced">
+      <br><sub>Every sector ends at a fortress, and it makes an entrance</sub>
+    </td>
+    <td align="center">
+      <img src="screenshots/final.png" alt="The fortress of sector nine">
+      <br><sub>Sector nine has a look of its own, and the Overseer</sub>
+    </td>
+  </tr>
+</table>
 
 Building
 --------
@@ -98,6 +122,10 @@ the part.  They have two, three or four towers.  Some cores sway from side to si
 swooping down the deck at you.  They fire rings of shots, turning
 spirals or volleys aimed at the tank, and two of them send out rovers.
 
+<p align="center">
+  <img src="screenshots/fortresses.png" width="640" alt="The cores of the nine fortresses">
+</p>
+
 | Sector | Fortress | Towers | The core                               |
 |--------|----------|--------|----------------------------------------|
 | 1      | Warden   | 2      | Sways, fires rings                     |
@@ -130,6 +158,10 @@ finish it.
 
 Beyond sector nine
 ------------------
+
+<p align="center">
+  <img src="screenshots/beyond.png" width="480" alt="The fused craft in open space">
+</p>
 
 Clearing sector nine fuses the tank and the ship into one craft.  It
 flies, it cannot morph, and it is on both levels at once: its guns hit
