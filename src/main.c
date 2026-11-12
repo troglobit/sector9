@@ -214,7 +214,10 @@ int main(int argc, char *argv[])
 
 			switch (ev.key.keysym.sym) {
 			case SDLK_ESCAPE:
-				run = 0;
+				if (game_escape())
+					run = 0;
+				paused = 0;
+				grab_mouse(mouse);
 				break;
 			case SDLK_p:
 				paused = !paused;

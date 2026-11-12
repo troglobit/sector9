@@ -36,7 +36,7 @@ and ship.  Space does the same and is easier on a keyboard.
 | P                | Pause                       |
 | - and +          | Mouse speed                 |
 | F11              | Toggle fullscreen           |
-| Esc              | Quit                        |
+| Esc              | Back to the title screen, quit from there |
 
 A game controller also works: stick or d-pad to move, A to fire, B or
 a wiggle to morph.

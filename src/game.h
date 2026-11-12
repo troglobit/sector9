@@ -69,6 +69,8 @@ void sfx_music(const char *name);
 
 void game_init(int start_row, int start_sector, int hiscore);
 int  game_hiscore(void);
+/* Leaves the game for the title screen; returns 1 if already there. */
+int  game_escape(void);
 void game_update(const struct input *in);
 void game_draw(void);
 void game_autopilot(struct input *in);

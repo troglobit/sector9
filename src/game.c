@@ -1034,6 +1034,15 @@ int game_hiscore(void)
 	return g.hiscore;
 }
 
+int game_escape(void)
+{
+	if (g.state == ST_TITLE)
+		return 1;
+	show_title();
+
+	return 0;
+}
+
 void game_update(const struct input *in)
 {
 	int morph = in->morph && !g.prev.morph;
