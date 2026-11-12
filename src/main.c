@@ -8,7 +8,7 @@
 #define STEP (1.0 / 60)
 
 static SDL_GameController *pad;
-static int mouse_speed = 5;	/* half game pixels per count */
+static int mouse_speed = 6;	/* half game pixels per count */
 
 /* The pointer is captured from the first click, and let go while paused. */
 static void grab_mouse(int on)
