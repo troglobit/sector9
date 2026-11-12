@@ -20,7 +20,7 @@
 #define WIGGLE_FRAMES 12
 #define DIAG_FRAMES 8
 #define SHIP_SCROLL 0.6f
-#define HALT_Y     48
+#define HALT_Y     100
 #define MARK_NEAR  3
 #define LIFE_SCORE 20000
 #define HOVER_Y    56
