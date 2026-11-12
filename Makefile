@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: ISC
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2 SDL2_mixer)
 SDL_LIBS   := $(shell pkg-config --libs sdl2 SDL2_mixer)
 

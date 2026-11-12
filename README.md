@@ -107,3 +107,10 @@ binary, in any format SDL2_mixer can play:
 
 A missing file means silence.  The title tune is "Enigma" by Phenomena,
 from [The Mod Archive](https://modarchive.org/).
+
+License
+-------
+
+The code, and the graphics and sound effects it generates, are under
+the [ISC license](LICENSE).  The tracker modules in `music` are not
+part of that; each one belongs to its composer.

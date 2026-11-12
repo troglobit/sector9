@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: ISC */
 #ifndef GAME_H
 #define GAME_H
 
