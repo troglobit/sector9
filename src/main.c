@@ -6,6 +6,7 @@
 #include "game.h"
 
 #define STEP (1.0 / 60)
+#define MOUSE_GAIN 2
 
 static SDL_GameController *pad;
 
@@ -33,8 +34,8 @@ static void read_input(struct input *in)
 		int x, y;
 		Uint32 b = SDL_GetRelativeMouseState(&x, &y);
 
-		in->mx = x / gfx_scale();
-		in->my = y / gfx_scale();
+		in->mx = x * MOUSE_GAIN / gfx_scale();
+		in->my = y * MOUSE_GAIN / gfx_scale();
 		in->fire  |= !!(b & SDL_BUTTON_LMASK);
 		in->morph |= !!(b & SDL_BUTTON_RMASK);
 	}

@@ -23,6 +23,7 @@
 #define HALT_Y     48
 #define MOUSE_REACH 16
 #define MOUSE_STICK 10
+#define MOUSE_REST  8
 #define LIFE_SCORE 20000
 #define HOVER_Y    56
 #define FUSE_FRAMES 480
@@ -43,6 +44,7 @@ struct axis   { int sign, seen, flip; };
 static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
 	float         mx, my;
+	int           brake;
 	int           pods, next_spawn, start_row, start_sector, flash;
 	struct axis   wx, wy;
 	float         cam, fx, fy;
@@ -505,14 +507,19 @@ static void update_player(const struct input *in, int morph)
 	if (p->missile_cd)
 		p->missile_cd--;
 
-	/* to the tank the mouse is a stick that stays where it is put; a tug back centres it */
+	/* to the tank the mouse is a stick that stays where it is put; a tug back
+	 * centres it and holds it there until the mouse has come to rest */
 	dot = in->mx * g.mx + in->my * g.my;
 	pull = in->mx * in->mx + in->my * in->my;
-	tug = !p->ship && dot < 0 && pull > 0.25f && dot * dot > 0.49f * pull * (g.mx * g.mx + g.my * g.my);
+	tug = dot < 0 && dot * dot > 0.25f * pull * (g.mx * g.mx + g.my * g.my);
+	if (!p->ship && pull > 1 && (tug || g.brake))
+		g.brake = MOUSE_REST;
+	else if (g.brake)
+		g.brake--;
 	g.mx += in->mx;
 	g.my += in->my;
 	len = hypotf(g.mx, g.my);
-	if (dx || dy || tug || len < 0.5f) {
+	if (dx || dy || g.brake || len < 0.5f) {
 		g.mx = g.my = 0;
 	} else if (p->ship) {
 		/* the ship chases the point the mouse drags along */
@@ -578,6 +585,7 @@ static void update_player(const struct input *in, int morph)
 		} else {
 			p->ship = !p->ship;
 			g.mx = g.my = 0;
+			g.brake = 0;
 			p->morph_cd = 20;
 			spark(p->x, p->y, 14, 1.5f, CYAN);
 			sfx_play(SFX_MORPH);
