@@ -27,10 +27,11 @@ static void fill(struct level *lv, int row, int n, int t)
 	memset(lv->tile[row], t, n * MAP_W);
 }
 
-static void ground(struct level *lv, int type, int row, int n, int count)
+/* Puts up to count ground enemies in the w by n cells at column c0, row. */
+static void place(struct level *lv, int type, int c0, int w, int row, int n, int count)
 {
 	while (count-- > 0) {
-		int c = 1 + rnd(MAP_W - 2);
+		int c = c0 + rnd(w);
 		int r = row + rnd(n);
 
 		if (lv->tile[r][c] == T_WALL)
@@ -40,6 +41,11 @@ static void ground(struct level *lv, int type, int row, int n, int count)
 			lv->tile[r][c] = T_WALL;
 		add(lv, type, c * TILE + TILE / 2, r * TILE + TILE / 2, 0);
 	}
+}
+
+static void ground(struct level *lv, int type, int row, int n, int count)
+{
+	place(lv, type, 1, MAP_W - 2, row, n, count);
 }
 
 static void heavies(struct level *lv, int row, int n, int sector)
@@ -66,15 +72,48 @@ static int by_scroll(const void *a, const void *b)
 	return (sa->y < sb->y) - (sa->y > sb->y);
 }
 
-void level_generate(struct level *lv, int sector)
+static void block(struct level *lv, int row, int col)
+{
+	for (int r = row; r < row + 2; r++)
+		lv->tile[r][col] = lv->tile[r][col + 1] = T_WALL;
+}
+
+/* Islands of deck in open space, no fortress at the end. */
+static void open_space(struct level *lv, int lap)
+{
+	int row;
+
+	lv->rows = 150;
+	row = lv->rows - 16;
+	memset(lv->tile, T_VOID, sizeof(lv->tile));
+
+	while (row > 24) {
+		int w = 4 + rnd(6), n = 3 + rnd(4), c = rnd(MAP_W - w + 1);
+
+		row -= n;
+		for (int r = row; r < row + n; r++)
+			memset(&lv->tile[r][c], T_FLOOR, w);
+		place(lv, E_TURRET, c, w, row, n, 1 + rnd(2));
+		place(lv, E_ROVER, c, w, row, n, rnd(2) + (lap > 0));
+		place(lv, E_HEAVY, c, w, row, n, rnd(2));
+
+		wave(lv, E_DRONE, row + n, 3 + rnd(3));
+		wave(lv, E_DART, row, 3 + SDL_min(lap, 5));
+		if (rnd(2))
+			wave(lv, E_GUNSHIP, row + n / 2, 1 + (lap > 1));
+
+		row -= 3 + rnd(4);
+	}
+}
+
+/* Segments of deck with a fortress at the end. */
+static void station(struct level *lv, int sector)
 {
 	int row, last = -1;
 	int more = sector / 3, few = sector ? 2 : 1;
 
-	memset(lv, 0, sizeof(*lv));
 	lv->rows = 110 + sector * 12;
 	row = lv->rows - 14;
-	seed = 0x9e3779b9u * (sector + 1);
 
 	while (row > ARENA_ROWS + 14) {
 		int kind, n;
@@ -93,8 +132,7 @@ void level_generate(struct level *lv, int sector)
 				int c = 1 + rnd(MAP_W - 3);
 				int r = row + 1 + rnd(n - 3);
 
-				lv->tile[r][c] = lv->tile[r][c + 1] = T_WALL;
-				lv->tile[r + 1][c] = lv->tile[r + 1][c + 1] = T_WALL;
+				block(lv, r, c);
 			}
 			ground(lv, E_TURRET, row, n, 1 + rnd(few) + more);
 			ground(lv, E_CRAWLER, row, n, rnd(few));
@@ -146,13 +184,29 @@ void level_generate(struct level *lv, int sector)
 		row -= 4;
 	}
 
-	for (int r = 5; r <= 6; r++) {
-		lv->tile[r][3] = lv->tile[r][4] = T_WALL;
-		lv->tile[r][MAP_W - 5] = lv->tile[r][MAP_W - 4] = T_WALL;
-	}
+	block(lv, 5, 3);
+	block(lv, 5, MAP_W - 5);
 	add(lv, E_POD, 4 * TILE, 6 * TILE, 0);
 	add(lv, E_POD, SCREEN_W - 4 * TILE, 6 * TILE, 0);
+	/* the last fortress has four towers */
+	if (sector == SECTORS - 1) {
+		block(lv, 9, 6);
+		block(lv, 9, MAP_W - 8);
+		add(lv, E_POD, 7 * TILE, 10 * TILE, 0);
+		add(lv, E_POD, SCREEN_W - 7 * TILE, 10 * TILE, 0);
+	}
 	add(lv, E_CORE, SCREEN_W / 2, 4 * TILE + 8, 0);
+}
+
+void level_generate(struct level *lv, int sector)
+{
+	memset(lv, 0, sizeof(*lv));
+	seed = 0x9e3779b9u * (sector + 1);
+
+	if (sector >= SECTORS)
+		open_space(lv, sector - SECTORS);
+	else
+		station(lv, sector);
 
 	qsort(lv->spawn, lv->nspawn, sizeof(lv->spawn[0]), by_scroll);
 }

@@ -79,6 +79,21 @@ harder enemies.  Later sectors are longer, bring in gunships and heavy
 tanks, and everything in them fires faster.  Every 20,000 points earns
 an extra life.
 
+Sector nine is the last one, and it looks the part.  Its fortress has
+four towers, and when the core has taken half of its damage it lifts
+off the ground, so the tank starts that fight and the ship has to
+finish it.
+
+Beyond sector nine
+------------------
+
+Clearing sector nine fuses the tank and the ship into one craft.  It
+flies, it cannot morph, and it is on both levels at once: its guns hit
+everything, and every shot can hit it.  What follows is open space
+with islands of deck drifting past, and it goes on until you run out
+of lives.  Each lap scrolls faster and multiplies the score: twice on
+the first lap, three times on the second, and so on.
+
 Music
 -----
 

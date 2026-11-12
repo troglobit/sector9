@@ -12,15 +12,16 @@
 #define MAX_SPAWN  512
 #define SECTORS    9
 
-enum tile   { T_FLOOR, T_WALL, T_ROOF };
+enum tile   { T_FLOOR, T_WALL, T_ROOF, T_VOID };
 enum etype  { E_TURRET, E_CRAWLER, E_DRONE, E_DART, E_POD, E_CORE, E_ROVER, E_GUNSHIP, E_HEAVY };
 enum sprite {
 	SPR_SHIP, SPR_TANK, SPR_TURRET, SPR_GUN, SPR_POD, SPR_CRAWLER, SPR_DRONE, SPR_DART, SPR_CORE, SPR_ROVER,
-	SPR_GUNSHIP, SPR_HEAVY, SPR_BUDDY, SPR_CAPSULE, SPR_ORB, SPR_MAX
+	SPR_GUNSHIP, SPR_HEAVY, SPR_FUSED, SPR_BUDDY, SPR_CAPSULE, SPR_ORB, SPR_MAX
 };
 enum sfx    { SFX_SHOT, SFX_HIT, SFX_BOOM, SFX_MORPH, SFX_DENY, SFX_PICKUP, SFX_HURT, SFX_MAX };
 enum draw   { DRAW_NORMAL, DRAW_FLASH };
 enum plate  { PLATE_FLOOR, PLATE_SEAM, PLATE_VENT, PLATE_WALL, PLATE_MAX };
+enum theme  { THEME_STEEL, THEME_EMBER, THEME_MAX };
 
 struct input {
 	int left, right, up, down, fire, morph, start;
@@ -41,6 +42,7 @@ struct level {
 	int           nspawn;
 };
 
+/* Sectors from SECTORS on are laps of the open space beyond the last one. */
 void level_generate(struct level *lv, int sector);
 
 void gfx_init(SDL_Renderer *r);
@@ -48,7 +50,7 @@ void gfx_init(SDL_Renderer *r);
 void gfx_sprite(int id, float x, float y, double angle, float scale, int mode);
 void gfx_tinted(int id, float x, float y, float scale, SDL_Color c);
 void gfx_disc(float x, float y, float r, SDL_Color c);
-void gfx_plate(int id, float x, float y, SDL_Color tint);
+void gfx_plate(int id, int theme, float x, float y, SDL_Color tint);
 void gfx_rect(float x, float y, float w, float h, SDL_Color c);
 void gfx_logo(float y);
 /* x < 0 centers the text */

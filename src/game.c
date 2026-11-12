@@ -22,23 +22,26 @@
 #define HALT_Y     48
 #define LIFE_SCORE 20000
 #define HOVER_Y    56
+#define FUSE_FRAMES 480
+#define FUSE_BURN  150
+#define FUSE_AT    330
 
-enum { ST_TITLE, ST_PLAY, ST_CLEAR, ST_OVER };
+enum { ST_TITLE, ST_PLAY, ST_CLEAR, ST_FUSE, ST_OVER };
 enum { IT_GUN, IT_SHIELD, IT_SPEED, IT_BUDDY, IT_MISSILE, IT_BOMB, IT_MAX };
 enum { L_GROUND = 1, L_AIR = 2 };
 
-struct enemy  { int alive, type, delay, hp, t, flash; float x, y, vx; };
+struct enemy  { int alive, type, delay, hp, full, lifted, t, flash; float x, y, vx; };
 struct bullet { int alive, friendly, level; float x, y, vx, vy; int homing; };
 struct part   { int life; float x, y, vx, vy; SDL_Color c; };
 struct item   { int alive, kind, rise; float x, y; };
-struct player { float x, y; int ship, dir, diag, hp, weapon, speed, buddies, missiles, missile_cd, reload, morph_cd, invuln, dead; };
+struct player { float x, y; int ship, dir, diag, hp, weapon, speed, buddies, missiles, missile_cd, reload, morph_cd, invuln, dead, fused; };
 struct axis   { int sign, seen, flip; };
 
 static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
 	int           pods, next_spawn, start_row, start_sector, flash;
 	struct axis   wx, wy;
-	float         cam;
+	float         cam, fx, fy;
 	unsigned      seed;
 	struct input  prev;
 	struct player p;
@@ -105,9 +108,55 @@ static float frand(void)
 	return (rnd(2001) - 1000) / 1000.0f;
 }
 
+static int beyond(void)
+{
+	return g.sector >= SECTORS;
+}
+
+static int lap(void)
+{
+	return g.sector - SECTORS;
+}
+
+static int last_sector(void)
+{
+	return g.sector == SECTORS - 1;
+}
+
+/* Frames into the fusion scene. */
+static int fuse_t(void)
+{
+	return FUSE_FRAMES - g.timer;
+}
+
+/* What the difficulty follows; it stops rising a few laps into the beyond. */
+static int rank(void)
+{
+	return SDL_min(g.sector, 12);
+}
+
+static float scroll_pace(void)
+{
+	return beyond() ? SDL_min(1.2f, 0.75f + 0.15f * lap()) : SHIP_SCROLL;
+}
+
+/* The fused craft is on both levels at once. */
 static int player_level(void)
 {
+	if (g.p.fused)
+		return L_GROUND | L_AIR;
+
 	return g.p.ship ? L_AIR : L_GROUND;
+}
+
+static int flies(const struct enemy *e)
+{
+	return et[e->type].flies || e->lifted;
+}
+
+static int level_of(const struct enemy *e)
+{
+	return e->lifted ? L_AIR : et[e->type].hit_by;
 }
 
 /* Angles run clockwise from straight up, matching SDL sprite rotation. */
@@ -142,6 +191,11 @@ static int box_hits(float x, float y, int t)
 	       tile_at(x - 6, y + 5) == t || tile_at(x + 5, y + 5) == t;
 }
 
+static int ground_blocked(float x, float y)
+{
+	return box_hits(x, y, T_WALL) || box_hits(x, y, T_VOID);
+}
+
 static int row_has(float y, int t)
 {
 	int r = (int)y / TILE;
@@ -152,8 +206,9 @@ static int row_has(float y, int t)
 /* The ship flies at a steady pace and halts in front of a roof. */
 static void ship_scroll(struct player *p)
 {
+	float pace = scroll_pace();
 	float halt = g.cam + HALT_Y;
-	float bottom = g.cam - SHIP_SCROLL + SCREEN_H - 8;
+	float bottom = g.cam - pace + SCREEN_H - 8;
 
 	if (halt < p->y && row_has(halt, T_ROOF))
 		return;
@@ -162,19 +217,25 @@ static void ship_scroll(struct player *p)
 			return;
 		p->y = bottom;
 	}
-	g.cam -= SHIP_SCROLL;
+	g.cam -= pace;
 }
 
-static void spark(float x, float y, int n, float speed, SDL_Color c)
+static void emit(float x, float y, float vx, float vy, int life, SDL_Color c)
 {
-	for (int i = 0; i < MAX_PART && n > 0; i++) {
+	for (int i = 0; i < MAX_PART; i++) {
 		struct part *q = &g.part[i];
 
 		if (q->life > 0)
 			continue;
-		*q = (struct part){ 15 + rnd(25), x, y, frand() * speed, frand() * speed, c };
-		n--;
+		*q = (struct part){ life, x, y, vx, vy, c };
+		return;
 	}
+}
+
+static void spark(float x, float y, int n, float speed, SDL_Color c)
+{
+	while (n-- > 0)
+		emit(x, y, frand() * speed, frand() * speed, 15 + rnd(25), c);
 }
 
 static void explode(float x, float y, int size)
@@ -233,7 +294,8 @@ static void spawn_enemy(const struct spawn *s)
 				     .x = s->x, .y = s->y };
 		e->hp = et[s->type].hp;
 		if (et[s->type].boss)
-			e->hp += e->hp * g.sector / 6;
+			e->hp += e->hp * rank() / 6;
+		e->full = e->hp;
 		if (!et[s->type].flies)
 			e->t = rnd(60);
 		if (s->type == E_CRAWLER)
@@ -244,6 +306,13 @@ static void spawn_enemy(const struct spawn *s)
 			g.pods++;
 		return;
 	}
+}
+
+static void skip_spawns(void)
+{
+	g.next_spawn = 0;
+	while (g.next_spawn < lv.nspawn && lv.spawn[g.next_spawn].y > g.cam + SCREEN_H + 24)
+		g.next_spawn++;
 }
 
 static void start_sector(int sector)
@@ -257,15 +326,14 @@ static void start_sector(int sector)
 	memset(g.bullet, 0, sizeof(g.bullet));
 	memset(g.item, 0, sizeof(g.item));
 	g.pods = 0;
-	g.next_spawn = 0;
 	g.cam = g.start_row ? g.start_row * TILE : START_CAM;
+	g.start_row = 0;
 	g.state = ST_PLAY;
-	while (g.next_spawn < lv.nspawn && lv.spawn[g.next_spawn].y > g.cam + SCREEN_H + 24)
-		g.next_spawn++;
+	skip_spawns();
 
 	p->x = SCREEN_W / 2;
 	p->y = g.cam + SCREEN_H - 40;
-	p->ship = 0;
+	p->ship = p->fused;
 	p->dir = 0;
 	p->hp = MAX_HP;
 	p->invuln = 90;
@@ -280,12 +348,17 @@ static void new_game(void)
 	g.p.weapon = 1;
 	g.p.speed = 0;
 	g.p.buddies = 0;
+	g.p.fused = g.start_sector >= SECTORS;
 	sfx_music("sector");
 	start_sector(g.start_sector);
 }
 
+/* Each lap of the beyond is worth more. */
 static void add_score(int n)
 {
+	if (beyond())
+		n *= 2 + lap();
+
 	if ((g.score + n) / LIFE_SCORE > g.score / LIFE_SCORE) {
 		g.lives++;
 		sfx_play(SFX_PICKUP);
@@ -325,6 +398,12 @@ static void damage_enemy(struct enemy *e)
 	e->flash = 4;
 	if (--e->hp > 0) {
 		sfx_play(SFX_HIT);
+		/* the last core takes off when half of it is gone */
+		if (e->type == E_CORE && last_sector() && !e->lifted && e->hp <= e->full / 2) {
+			e->lifted = 1;
+			g.flash = 8;
+			explode(e->x, e->y, 30);
+		}
 		return;
 	}
 
@@ -338,6 +417,12 @@ static void damage_enemy(struct enemy *e)
 		memset(g.bullet, 0, sizeof(g.bullet));
 		g.state = ST_CLEAR;
 		g.timer = 240;
+		if (last_sector()) {
+			g.state = ST_FUSE;
+			g.timer = FUSE_FRAMES;
+			g.fx = e->x;
+			g.fy = e->y;
+		}
 	} else if (e->type == E_TURRET) {
 		/* a supply capsule may rise out of the wrecked tower's block */
 		if (rnd(3) == 0)
@@ -368,10 +453,15 @@ static void player_fire(void)
 		add_bullet(x, y, ang + 0.25f, speed, 1, level);
 	}
 
+	if (p->fused) {
+		add_bullet(p->x - 8, p->y, ang, speed, 1, level);
+		add_bullet(p->x + 8, p->y, ang, speed, 1, level);
+	}
+
 	for (int i = 0; i < p->buddies; i++)
 		add_bullet(g.bx[i], g.by[i], ang, speed, 1, level);
 
-	p->reload = p->ship ? 8 : 12;
+	p->reload = p->fused ? 7 : p->ship ? 8 : 12;
 	sfx_play(SFX_SHOT);
 }
 
@@ -440,7 +530,7 @@ static void update_player(const struct input *in, int morph)
 	if (g.cam < 0)
 		g.cam = 0;
 
-	if (morph && !p->morph_cd) {
+	if (morph && !p->morph_cd && !p->fused) {
 		if (box_hits(p->x, p->y, p->ship ? T_WALL : T_ROOF)) {
 			sfx_play(SFX_DENY);
 		} else {
@@ -474,16 +564,16 @@ static void update_player(const struct input *in, int morph)
 static void enemy_fire(const struct enemy *e, float ang, int n, float gap)
 {
 	const struct etype_info *t = &et[e->type];
-	float speed = t->shot_speed * (0.85f + 0.04f * g.sector);
+	float speed = t->shot_speed * (0.85f + 0.04f * rank());
 
 	for (int i = 0; i < n; i++)
-		add_bullet(e->x, e->y, ang + (i - (n - 1) / 2.0f) * gap, speed, 0, t->hit_by);
+		add_bullet(e->x, e->y, ang + (i - (n - 1) / 2.0f) * gap, speed, 0, level_of(e));
 }
 
 static void update_enemies(void)
 {
 	struct player *p = &g.p;
-	int period = 150 - g.sector * 10;
+	int period = 150 - rank() * 10;
 
 	while (g.next_spawn < lv.nspawn && lv.spawn[g.next_spawn].y >= g.cam - 24)
 		spawn_enemy(&lv.spawn[g.next_spawn++]);
@@ -517,7 +607,7 @@ static void update_enemies(void)
 
 		case E_CRAWLER:
 			e->x += e->vx;
-			if (e->x < 8 || e->x > SCREEN_W - 8 || box_hits(e->x, e->y, T_WALL)) {
+			if (e->x < 8 || e->x > SCREEN_W - 8 || ground_blocked(e->x, e->y)) {
 				e->vx = -e->vx;
 				e->x += e->vx * 2;
 			}
@@ -537,7 +627,7 @@ static void update_enemies(void)
 
 		case E_GUNSHIP:
 			/* drops in, hovers ahead of the ship, then leaves */
-			e->y += e->t > 600 || e->y < g.cam + HOVER_Y ? 0.8f : -SHIP_SCROLL;
+			e->y += e->t > 600 || e->y < g.cam + HOVER_Y ? 0.8f : -scroll_pace();
 			e->x += SDL_clamp(p->x - e->x, -0.3f, 0.3f);
 			if (vis && e->t % 90 == 0)
 				enemy_fire(e, aim, t->shots, 0.3f);
@@ -550,8 +640,12 @@ static void update_enemies(void)
 
 		case E_CORE:
 			e->x = SCREEN_W / 2 + 70 * sinf(e->t * 0.02f);
-			if (vis && !shielded(e) && e->t % (90 - g.sector * 3) == 0) {
-				int ring = t->shots + g.sector / 2;
+			if (!vis || shielded(e))
+				break;
+			if (e->lifted && e->t % 50 == 0)
+				enemy_fire(e, aim, 5, 0.25f);
+			if (e->t % (90 - rank() * 3) == 0) {
+				int ring = t->shots + rank() / 2;
 
 				enemy_fire(e, e->t, ring, 2 * (float)M_PI / ring);
 			}
@@ -564,13 +658,13 @@ static void update_enemies(void)
 			if (fabsf(p->x - e->x) > 2) {
 				float nx = e->x + (p->x > e->x ? t->drive : -t->drive);
 
-				if (!box_hits(nx, e->y, T_WALL))
+				if (!ground_blocked(nx, e->y))
 					e->x = nx;
 			}
 			if (fabsf(p->y - e->y) > 2) {
 				float ny = e->y + (p->y > e->y ? t->drive : -t->drive);
 
-				if (!box_hits(e->x, ny, T_WALL))
+				if (!ground_blocked(e->x, ny))
 					e->y = ny;
 			}
 			if (e->t % period == 0)
@@ -584,7 +678,7 @@ static void update_enemies(void)
 		}
 
 		r = t->radius + 5;
-		if (!p->dead && !p->invuln && t->flies == p->ship &&
+		if (!p->dead && !p->invuln && flies(e) == p->ship &&
 		    fabsf(p->x - e->x) < r && fabsf(p->y - e->y) < r) {
 			hurt_player();
 			if (!t->boss)
@@ -696,7 +790,7 @@ static void update_bullets(void)
 			struct enemy *e = &g.enemy[n];
 			int r = et[e->type].radius + 2;
 
-			if (!e->alive || e->delay || !(b->level & et[e->type].hit_by))
+			if (!e->alive || e->delay || !(b->level & level_of(e)))
 				continue;
 			if (fabsf(b->x - e->x) > r || fabsf(b->y - e->y) > r)
 				continue;
@@ -789,8 +883,67 @@ static int wiggle(struct axis *a, int v)
 	return hit;
 }
 
+/* The camera wraps to the bottom of a fresh stretch, taking everything along. */
+static void next_lap(void)
+{
+	float shift;
+
+	level_generate(&lv, ++g.sector);
+	shift = START_CAM - g.cam;
+	g.cam += shift;
+	g.p.y += shift;
+	for (int i = 0; i < MAX_ENEMY; i++)
+		g.enemy[i].y += shift;
+	for (int i = 0; i < MAX_BULLET; i++)
+		g.bullet[i].y += shift;
+	for (int i = 0; i < MAX_ITEM; i++)
+		g.item[i].y += shift;
+	for (int i = 0; i < MAX_PART; i++)
+		g.part[i].y += shift;
+	for (int i = 0; i < MAX_BUDDY; i++)
+		g.by[i] += shift;
+	skip_spawns();
+}
+
+/* The wreck burns, the two shapes pull together, and the fused craft leaves. */
+static void update_fuse(void)
+{
+	struct player *p = &g.p;
+	int t = fuse_t();
+
+	g.timer--;
+
+	if (t == 0) {
+		p->dead = p->invuln = 0;
+		p->hp = MAX_HP;
+		g.lives = SDL_max(g.lives, 0);
+	}
+
+	if (t < FUSE_BURN) {
+		if (t % 12 == 0)
+			explode(g.fx + frand() * 30, g.fy + frand() * 30, 24);
+	} else if (t < FUSE_AT) {
+		float a = frand() * (float)M_PI;
+
+		p->x += (SCREEN_W / 2 - p->x) * 0.04f;
+		p->y += (g.cam + 150 - p->y) * 0.04f;
+		emit(p->x + cosf(a) * 44, p->y + sinf(a) * 44, -cosf(a) * 2, -sinf(a) * 2, 20, CYAN);
+	} else if (t == FUSE_AT) {
+		p->fused = p->ship = 1;
+		g.flash = 25;
+		spark(p->x, p->y, 60, 3.0f, CYAN);
+		spark(p->x, p->y, 30, 1.5f, WHITE);
+		sfx_play(SFX_MORPH);
+		sfx_play(SFX_BOOM);
+	}
+
+	if (g.timer <= 0)
+		start_sector(SECTORS);
+}
+
 static void show_title(void)
 {
+	g.sector = 0;
 	level_generate(&lv, 0);
 	g.cam = START_CAM;
 	g.state = ST_TITLE;
@@ -802,7 +955,7 @@ void game_init(int start_row, int start_sector)
 	memset(&g, 0, sizeof(g));
 	g.seed = 0x2545f491u;
 	g.start_row = start_row;
-	g.start_sector = SDL_clamp(start_sector, 0, SECTORS - 1);
+	g.start_sector = SDL_clamp(start_sector, 0, SECTORS);
 	g.wx.flip = g.wy.flip = -1000;
 	show_title();
 }
@@ -836,17 +989,19 @@ void game_update(const struct input *in)
 		update_bullets();
 		update_items();
 		update_particles();
+		if (beyond() && g.cam <= 0)
+			next_lap();
 		break;
 
 	case ST_CLEAR:
 		update_particles();
-		if (--g.timer)
-			break;
-		if (g.sector + 1 < SECTORS) {
+		if (--g.timer == 0)
 			start_sector(g.sector + 1);
-		} else {
-			game_over();
-		}
+		break;
+
+	case ST_FUSE:
+		update_fuse();
+		update_particles();
 		break;
 
 	case ST_OVER:
@@ -877,14 +1032,27 @@ void game_autopilot(struct input *in)
 	in->morph = stuck % 45 == 31;
 }
 
+static void draw_stars(void)
+{
+	for (unsigned i = 1; i <= 70; i++) {
+		unsigned h = i * 2654435761u;
+		int depth = h >> 8 & 3;
+		float y = fmodf((h >> 12 & 255) * SCREEN_H / 255.0f + g.frame * (0.2f + depth * 0.25f), SCREEN_H);
+
+		gfx_rect(h % SCREEN_W, y, 0.6f + depth * 0.2f, 0.6f + depth * 0.2f,
+			 (SDL_Color){ 200, 220, 255, 90 + depth * 50 });
+	}
+}
+
 static void draw_tiles(int roof, float cam)
 {
 	static const SDL_Color tints[] = {
 		{ 255, 255, 255, 255 }, { 222, 255, 240, 255 }, { 255, 238, 222, 255 },
 		{ 240, 226, 255, 255 }, { 255, 250, 200, 255 }, { 205, 240, 255, 255 },
-		{ 255, 214, 226, 255 }, { 226, 255, 210, 255 }, { 255, 200, 190, 255 },
+		{ 255, 214, 226, 255 }, { 226, 255, 210, 255 }, { 255, 255, 255, 255 },
 	};
 	SDL_Color tint = tints[g.sector % SDL_arraysize(tints)];
+	int theme = last_sector() ? THEME_EMBER : THEME_STEEL;
 	int r0 = (int)cam / TILE;
 	int glow = 50 + (int)(12 * sinf(g.frame * 0.1f));
 
@@ -894,6 +1062,9 @@ static void draw_tiles(int roof, float cam)
 			float x = c * TILE, y = r * TILE - cam;
 			unsigned h = (r * 73856093u) ^ (c * 19349663u);
 
+			if (t == T_VOID)
+				continue;
+
 			if (roof) {
 				if (t != T_ROOF)
 					continue;
@@ -901,9 +1072,9 @@ static void draw_tiles(int roof, float cam)
 				gfx_rect(x, y, TILE, 0.5f, (SDL_Color){ 130, 240, 255, 110 });
 				gfx_rect(x, y, 0.5f, TILE, (SDL_Color){ 130, 240, 255, 110 });
 			} else if (t == T_WALL) {
-				gfx_plate(PLATE_WALL, x, y, tint);
+				gfx_plate(PLATE_WALL, theme, x, y, tint);
 			} else {
-				gfx_plate(h % 11 == 0 ? PLATE_VENT : h % 5 == 0 ? PLATE_SEAM : PLATE_FLOOR, x, y, tint);
+				gfx_plate(h % 11 == 0 ? PLATE_VENT : h % 5 == 0 ? PLATE_SEAM : PLATE_FLOOR, theme, x, y, tint);
 				if (r > 0 && lv.tile[r - 1][c] == T_WALL)
 					gfx_rect(x, y, TILE, 5, (SDL_Color){ 0, 0, 0, 90 });
 				if (c > 0 && lv.tile[r][c - 1] == T_WALL)
@@ -921,7 +1092,7 @@ static void draw_enemies(int air, float cam)
 		float y = e->y - cam, aim = aim_at(e) * 180 / (float)M_PI, ang = 0;
 		int mode = e->flash ? DRAW_FLASH : DRAW_NORMAL;
 
-		if (!e->alive || e->delay || t->flies != air)
+		if (!e->alive || e->delay || flies(e) != air)
 			continue;
 
 		if (e->type == E_CRAWLER) {
@@ -932,9 +1103,9 @@ static void draw_enemies(int air, float cam)
 		}
 
 		/* whatever the ship can hit is up high and casts a shadow */
-		if (t->flies)
+		if (flies(e))
 			gfx_tinted(t->sprite, e->x + 4, y + 8, 1, SHADOW);
-		else if (t->hit_by & L_AIR)
+		else if (level_of(e) & L_AIR)
 			gfx_tinted(t->sprite, e->x + t->radius * 0.4f, y + t->radius * 0.7f, 1, SHADOW);
 		gfx_sprite(t->sprite, e->x, y, ang, 1, mode);
 		if (t->gun)
@@ -949,6 +1120,7 @@ static void draw_player(float cam)
 {
 	const struct player *p = &g.p;
 	float y = p->y - cam;
+	int ship = p->ship;
 
 	if (p->dead || (p->invuln & 2))
 		return;
@@ -956,9 +1128,15 @@ static void draw_player(float cam)
 	for (int i = 0; i < p->buddies; i++)
 		gfx_sprite(SPR_BUDDY, g.bx[i], g.by[i] - cam, 0, 1, DRAW_NORMAL);
 
-	if (p->ship) {
-		gfx_tinted(SPR_SHIP, p->x + 4, y + 8, 1, SHADOW);
-		gfx_sprite(SPR_SHIP, p->x, y, 0, 1, DRAW_NORMAL);
+	/* the two shapes flicker faster and faster before they fuse */
+	if (g.state == ST_FUSE && !p->fused && fuse_t() > FUSE_BURN)
+		ship = fuse_t() * fuse_t() / 900 & 1;
+
+	if (ship) {
+		int id = p->fused ? SPR_FUSED : SPR_SHIP;
+
+		gfx_tinted(id, p->x + 4, y + 8, 1, SHADOW);
+		gfx_sprite(id, p->x, y, 0, 1, DRAW_NORMAL);
 	} else {
 		gfx_sprite(SPR_TANK, p->x, y, player_angle() * 180 / (float)M_PI, 1, DRAW_NORMAL);
 	}
@@ -1020,12 +1198,15 @@ static void draw_hud(void)
 	for (int i = 0; i < MAX_HP; i++)
 		gfx_rect(40 + i * 7, 2, 6, 5, i < p->hp ? CYAN : (SDL_Color){ 40, 48, 64, 255 });
 
-	gfx_text(80, 2, 1, p->ship ? CYAN : GREEN, p->ship ? "SHIP" : "TANK");
+	gfx_text(80, 2, 1, p->fused ? YELLOW : p->ship ? CYAN : GREEN, p->fused ? "FUSED" : p->ship ? "SHIP" : "TANK");
 	gfx_text(108, 2, 1, YELLOW, "GUN %d", p->weapon);
 	if (p->missiles)
 		gfx_text(196, 2, 1, RED, "H %d", p->missiles);
 	gfx_text(-1, 2, 1, GREY, "HI %06d", SDL_max(g.hiscore, g.score));
-	gfx_text(SCREEN_W - 76, 2, 1, WHITE, "SECTOR %d", g.sector + 1);
+	if (beyond())
+		gfx_text(SCREEN_W - 80, 2, 1, YELLOW, "BEYOND X%d", 2 + lap());
+	else
+		gfx_text(SCREEN_W - 76, 2, 1, WHITE, "SECTOR %d", g.sector + 1);
 	gfx_text(SCREEN_W - 30, 2, 1, WHITE, "LIFE %d", SDL_max(g.lives, 0));
 }
 
@@ -1034,6 +1215,8 @@ void game_draw(void)
 	float cam = g.cam;
 	int blink = (g.frame / 30) & 1;
 
+	if (beyond())
+		draw_stars();
 	draw_tiles(0, cam);
 
 	if (g.state == ST_TITLE) {
@@ -1076,11 +1259,17 @@ void game_draw(void)
 
 	if (g.state == ST_CLEAR) {
 		gfx_text(-1, 90, 3, YELLOW, "SECTOR %d CLEAR", g.sector + 1);
+	} else if (g.state == ST_FUSE) {
+		if (fuse_t() < FUSE_BURN)
+			gfx_text(-1, 60, 3, YELLOW, "SECTOR NINE CLEARED");
+		else if (g.p.fused)
+			gfx_text(-1, 60, 4, CYAN, "FUSED");
+		if (g.p.fused && blink)
+			gfx_text(-1, 88, 1, WHITE, "ONE CRAFT - BOTH LEVELS - GO BEYOND");
 	} else if (g.state == ST_OVER) {
-		if (g.lives >= 0)
-			gfx_text(-1, 90, 3, YELLOW, "SECTOR NINE CLEARED");
-		else
-			gfx_text(-1, 90, 4, RED, "GAME OVER");
+		gfx_text(-1, 90, 4, RED, "GAME OVER");
+		if (beyond())
+			gfx_text(-1, 76, 1, YELLOW, "YOU WENT BEYOND SECTOR NINE");
 		gfx_text(-1, 124, 1, WHITE, "SCORE %06d", g.score);
 		if (!g.timer && blink)
 			gfx_text(-1, 140, 1, GREY, "PRESS FIRE");

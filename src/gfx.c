@@ -43,7 +43,7 @@ struct font {
 
 static SDL_Renderer *ren;
 static SDL_Texture  *tex[SPR_MAX];
-static SDL_Texture  *plate[PLATE_MAX];
+static SDL_Texture  *plate[THEME_MAX][PLATE_MAX];
 static SDL_Texture  *logo;
 static struct font   font[FONTS];
 
@@ -182,6 +182,22 @@ static const struct shape heavy[] = {
 	{ 0 }
 };
 
+static const struct shape fused[] = {
+	{ 'b', 'd', 1, { 8.2f, 2.4f, 1.6f, 5.6f, 0.8f } },
+	{ 'l', 'k', 1, { 7.2f, 0, 9.2f, 0, 0.2f } },
+	{ 'l', 'k', 1, { 7.2f, 2.4f, 9.2f, 2.4f, 0.2f } },
+	{ 'l', 'k', 1, { 7.2f, 4.8f, 9.2f, 4.8f, 0.2f } },
+	{ 'p', 'G', 1, { 4, 1, -3.4f, 7.6f, 2.6f, 7.6f, 6, 1, 5.4f } },
+	{ 'l', 'g', 1, { 4.4f, 1, 4.4f, -6, 0.6f } },
+	{ 'p', 'w', 0, { 5, 0, -10, 2.7f, -2, 2.7f, 7.2f, -2.7f, 7.2f, -2.7f, -2 } },
+	{ 'l', 'b', 0, { 0, -4.4f, 0, -0.6f, 1.3f } },
+	{ 'c', 'c', 0, { -0.3f, -4.3f, 0.5f } },
+	{ 'c', 'y', 0, { 0, 3.6f, 1.3f } },
+	{ 'b', 'o', 1, { 1.4f, 7.8f, 0.9f, 1, 0.3f } },
+	{ 'c', 'y', 1, { 1.4f, 8.3f, 0.45f } },
+	{ 0 }
+};
+
 static const struct shape buddy[] = {
 	{ 'l', 'g', 1, { 1.6f, 0.2f, 3.3f, 1.6f, 0.45f } },
 	{ 'c', 'c', 0, { 0, 0, 2.4f } },
@@ -213,6 +229,7 @@ static const struct model model[SPR_MAX] = {
 	[SPR_ROVER]   = {  8, 0.5f, 0, rover },
 	[SPR_GUNSHIP] = { 13, 0.5f, 0, gunship },
 	[SPR_HEAVY]   = { 11, 0.5f, 0, heavy },
+	[SPR_FUSED]   = { 12, 0.5f, 0, fused },
 	[SPR_BUDDY]   = {  5, 0.4f, 0, buddy },
 	[SPR_CAPSULE] = {  6, 0.4f, 0, capsule },
 	[SPR_ORB]     = {  4, 0,    1, orb },
@@ -454,14 +471,21 @@ static SDL_Texture *make_sprite(const struct model *m)
 	return upload(px, size, size, SDL_ScaleModeLinear);
 }
 
+/* 1 on a thin line at d = 0, fading out to either side. */
+static float ridge(float d)
+{
+	return clamp01(1 - fabsf(d) * 2.5f);
+}
+
 /* A slot or panel edge: dark on the lit side, bright on the far side. */
 static float groove(float d, float lit)
 {
-	return clamp01(1 - fabsf(d) * 2.5f) * (lit > 0 ? -34 : 24);
+	return ridge(d) * (lit > 0 ? -34 : 24);
 }
 
-/* Steel plates, lit from the top left.  l is brightness before the blue tint. */
-static SDL_Texture *make_plate(int id)
+/* Plates lit from the top left.  l is brightness before the theme's tint;
+ * ember plates are dark and their slots and seams glow. */
+static SDL_Texture *make_plate(int id, int theme)
 {
 	int wall = id == PLATE_WALL;
 	float edge = wall ? 1.5f : 0.6f;
@@ -478,7 +502,7 @@ static SDL_Texture *make_plate(int id)
 		float l = (wall ? 128 : 64) + brushed + (TILE - x - y) / (wall ? 1 : 3);
 		float bx = fabsf(x - TILE / 2) - (TILE / 2 - inset);
 		float by = fabsf(y - TILE / 2) - (TILE / 2 - inset);
-		float bolt = hypotf(bx, by);
+		float bolt = hypotf(bx, by), glow = 0;
 
 		if (x < edge || y < edge)
 			l += wall ? 44 : 18;
@@ -498,24 +522,32 @@ static SDL_Texture *make_plate(int id)
 			float d = fmaxf(fabsf(x - TILE / 2), fabsf(y - TILE / 2)) - 4;
 
 			l += groove(d, (TILE - x - y));
+			glow = ridge(d) * 0.6f;
 			if (d < 0)
 				l -= 10;
 		} else if (id == PLATE_SEAM) {
-			if (x > 1 && x < TILE - 1)
+			if (x > 1 && x < TILE - 1) {
 				l += groove(y - TILE / 2 + 0.2f, 1) + groove(y - TILE / 2 - 0.3f, -1);
+				glow = ridge(y - TILE / 2 + 0.2f) * 0.7f;
+			}
 		} else if (id == PLATE_VENT) {
 			for (int n = 0; n < 4; n++) {
 				float sy = 6.5f + n * 2.4f;
 				float d = seg_dist(x, y, 6, sy, TILE - 6, sy) - 0.6f;
 
-				if (d < 0)
+				if (d < 0) {
 					l -= 40;
-				else if (d < 0.45f && y > sy)
+					glow = 1;
+				} else if (d < 0.45f && y > sy) {
 					l += 16;
+				}
 			}
 		}
 
-		put(&px[i * 4], (struct rgb){ l * 0.62f, l * 0.84f, l * 1.26f }, 1);
+		if (theme == THEME_EMBER)
+			put(&px[i * 4], (struct rgb){ l * 0.8f + glow * 215, l * 0.56f + glow * 90, l * 0.56f }, 1);
+		else
+			put(&px[i * 4], (struct rgb){ l * 0.62f, l * 0.84f, l * 1.26f }, 1);
 	}
 
 	return upload(px, PLATE_PX, PLATE_PX, SDL_ScaleModeLinear);
@@ -663,8 +695,10 @@ void gfx_init(SDL_Renderer *r)
 	ren = r;
 	SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
 
-	for (int i = 0; i < PLATE_MAX; i++)
-		plate[i] = make_plate(i);
+	for (int theme = 0; theme < THEME_MAX; theme++) {
+		for (int i = 0; i < PLATE_MAX; i++)
+			plate[theme][i] = make_plate(i, theme);
+	}
 	for (int i = 0; i < SPR_MAX; i++)
 		tex[i] = make_sprite(&model[i]);
 	logo = make_logo();
@@ -703,14 +737,14 @@ void gfx_disc(float x, float y, float r, SDL_Color c)
 	gfx_tinted(SPR_ORB, x, y, r / ORB_R, c);
 }
 
-void gfx_plate(int id, float x, float y, SDL_Color tint)
+void gfx_plate(int id, int theme, float x, float y, SDL_Color tint)
 {
 	float s = pixel_scale();
 	float x0 = roundf(x * s) / s, y0 = roundf(y * s) / s;
 	SDL_FRect dst = { x0, y0, roundf((x + TILE) * s) / s - x0, roundf((y + TILE) * s) / s - y0 };
 
-	SDL_SetTextureColorMod(plate[id], tint.r, tint.g, tint.b);
-	SDL_RenderCopyF(ren, plate[id], NULL, &dst);
+	SDL_SetTextureColorMod(plate[theme][id], tint.r, tint.g, tint.b);
+	SDL_RenderCopyF(ren, plate[theme][id], NULL, &dst);
 }
 
 void gfx_rect(float x, float y, float w, float h, SDL_Color c)
