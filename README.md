@@ -128,8 +128,10 @@ Clearing sector nine fuses the tank and the ship into one craft.  It
 flies, it cannot morph, and it is on both levels at once: its guns hit
 everything, and every shot can hit it.  What follows is open space
 with islands of deck drifting past, and it goes on until you run out
-of lives.  Each lap scrolls faster and multiplies the score: twice on
-the first lap, three times on the second, and so on.
+of lives.  Each lap ends at a fortress, starting over with the Warden,
+and the next lap begins when its core is gone.  Each lap scrolls
+faster and multiplies the score: twice on the first lap, three times
+on the second, and so on.
 
 Music
 -----

@@ -467,6 +467,13 @@ static void damage_enemy(struct enemy *e)
 		g.pods--;
 	} else if (e->type == E_CORE) {
 		memset(g.bullet, 0, sizeof(g.bullet));
+		if (beyond()) {
+			/* the lap goes on from here, see next_lap() */
+			g.flash = 8;
+			drop_item(e->x - 12, e->y, 0);
+			drop_item(e->x + 12, e->y, 0);
+			return;
+		}
 		g.state = ST_CLEAR;
 		g.timer = 240;
 		if (last_sector()) {
@@ -1159,7 +1166,7 @@ void game_update(const struct input *in)
 		update_bullets();
 		update_items();
 		update_particles();
-		if (beyond() && g.cam <= 0)
+		if (beyond() && g.cam <= 0 && !count(E_CORE))
 			next_lap();
 		break;
 

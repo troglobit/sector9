@@ -118,10 +118,16 @@ static void fortress(struct level *lv, int sector, int row, int armed)
 		add(lv, E_CORE, SCREEN_W / 2, CORE_Y, 0);
 }
 
-/* Islands of deck in open space, no fortress at the end. */
+static void deck(struct level *lv, int row)
+{
+	for (int r = row + 1; r < row + SCREEN_H / TILE; r++)
+		memset(&lv->tile[r][2], T_FLOOR, MAP_W - 4);
+}
+
+/* Islands of deck in open space, and a fortress on a deck at the end. */
 static void open_space(struct level *lv, int lap)
 {
-	int row;
+	int row, start;
 
 	lv->rows = 150;
 	row = lv->rows - 16;
@@ -143,6 +149,16 @@ static void open_space(struct level *lv, int lap)
 			wave(lv, E_GUNSHIP, row + n / 2, 1 + (lap > 1));
 
 		row -= 3 + rnd(4);
+	}
+
+	/* each lap ends at a fortress on a deck of its own; the next lap starts
+	 * on the same deck, so the wrap from top to bottom does not show */
+	deck(lv, 0);
+	fortress(lv, SECTORS + lap, 0, 1);
+	start = lv->rows - SCREEN_H / TILE;
+	if (lap > 0) {
+		deck(lv, start);
+		fortress(lv, SECTORS + lap - 1, start, 0);
 	}
 }
 
