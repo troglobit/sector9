@@ -138,6 +138,11 @@ and the next lap begins when its core is gone.  Each lap scrolls
 faster and multiplies the score: twice on the first lap, three times
 on the second, and so on.
 
+Names
+-----
+
+The first enemy of each kind in a sector carries its name for a moment.
+
 Music
 -----
 

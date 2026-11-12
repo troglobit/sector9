@@ -10,6 +10,7 @@
 #define BLAST_LIFE 20
 #define MAX_SHAKE  10
 #define SCAN_GAP   60
+#define NAME_FRAMES 150	/* how long a newcomer carries its name */
 #define SPIRAL_TURN 0.07f	/* radians per frame */
 #define CORE_CYCLE 300	/* frames between swoops, and between rovers */
 #define MAX_ITEM   8
@@ -40,7 +41,7 @@ enum { ST_TITLE, ST_PLAY, ST_CLEAR, ST_FUSE, ST_OVER };
 enum { IT_GUN, IT_SHIELD, IT_SPEED, IT_BUDDY, IT_MISSILE, IT_BOMB, IT_MAX };
 enum { L_GROUND = 1, L_AIR = 2 };
 
-struct enemy  { int alive, type, delay, hp, full, lifted, t, flash; float x, y, vx; };
+struct enemy  { int alive, type, delay, hp, full, lifted, t, flash, named; float x, y, vx; };
 struct bullet { int alive, friendly, level; float x, y, vx, vy; int homing; };
 struct part   { int life; float x, y, vx, vy; SDL_Color c; float blast; };
 struct item   { int alive, kind, rise; float x, y; };
@@ -51,6 +52,7 @@ static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
 	float         mx, my;
 	int           mouse, direct, bot;
+	unsigned      met;		/* enemy types seen in this sector */
 	int           pods, next_spawn, start_row, start_sector, flash, shake;
 	struct axis   wx, wy;
 	float         cam, fx, fy;
@@ -83,16 +85,17 @@ static const SDL_Color SHADOW = {   0,   0,   0,  90 };
 static const struct etype_info {
 	int   hp, score, radius, sprite, gun, hit_by, flies, boss, shots;
 	float shot_speed, drive;
+	const char *name;	/* the core goes by the name of its fortress */
 } et[] = {
-	[E_TURRET]  = {  3,  100,  7, SPR_TURRET,  1, L_AIR,    0, 0, 1, 1.6f, 0 },
-	[E_CRAWLER] = {  2,  150,  7, SPR_CRAWLER, 0, L_GROUND, 0, 0, 0, 0,    0 },
-	[E_DRONE]   = {  2,  100,  7, SPR_DRONE,   0, L_AIR,    1, 0, 1, 1.8f, 0 },
-	[E_DART]    = {  1,  150,  7, SPR_DART,    0, L_AIR,    1, 0, 0, 0,    0 },
-	[E_POD]     = { 12, 1000, 13, SPR_POD,     2, L_AIR,    0, 1, 3, 1.8f, 0 },
-	[E_CORE]    = { 30, 5000, 20, SPR_CORE,    0, L_GROUND, 0, 1, 8, 1.5f, 0 },
-	[E_ROVER]   = {  3,  200,  7, SPR_ROVER,   0, L_GROUND, 0, 0, 1, 1.6f, 0.4f },
-	[E_GUNSHIP] = {  8,  400,  9, SPR_GUNSHIP, 0, L_AIR,    1, 0, 3, 1.8f, 0 },
-	[E_HEAVY]   = {  8,  400,  9, SPR_HEAVY,   0, L_GROUND, 0, 0, 2, 1.6f, 0.22f },
+	[E_TURRET]  = {  3,  100,  7, SPR_TURRET,  1, L_AIR,    0, 0, 1, 1.6f, 0, "GUN TOWER" },
+	[E_CRAWLER] = {  2,  150,  7, SPR_CRAWLER, 0, L_GROUND, 0, 0, 0, 0,    0, "CRAWLER" },
+	[E_DRONE]   = {  2,  100,  7, SPR_DRONE,   0, L_AIR,    1, 0, 1, 1.8f, 0, "DRONE" },
+	[E_DART]    = {  1,  150,  7, SPR_DART,    0, L_AIR,    1, 0, 0, 0,    0, "DART" },
+	[E_POD]     = { 12, 1000, 13, SPR_POD,     2, L_AIR,    0, 1, 3, 1.8f, 0, "TOWER" },
+	[E_CORE]    = { 30, 5000, 20, SPR_CORE,    0, L_GROUND, 0, 1, 8, 1.5f, 0, NULL },
+	[E_ROVER]   = {  3,  200,  7, SPR_ROVER,   0, L_GROUND, 0, 0, 1, 1.6f, 0.4f, "ROVER" },
+	[E_GUNSHIP] = {  8,  400,  9, SPR_GUNSHIP, 0, L_AIR,    1, 0, 3, 1.8f, 0, "GUNSHIP" },
+	[E_HEAVY]   = {  8,  400,  9, SPR_HEAVY,   0, L_GROUND, 0, 0, 2, 1.6f, 0.22f, "HEAVY TANK" },
 };
 
 static const struct {
@@ -370,6 +373,7 @@ static void start_sector(int sector)
 
 	g.sector = sector;
 	g.mouse = 0;
+	g.met = 0;
 	level_generate(&lv, sector);
 
 	memset(g.enemy, 0, sizeof(g.enemy));
@@ -760,6 +764,13 @@ static void update_enemies(void)
 			e->flash--;
 
 		vis = onscreen(e);
+		if (e->named)
+			e->named--;
+		/* the first of its kind in a sector is introduced */
+		if (vis && !(g.met & 1u << e->type)) {
+			g.met |= 1u << e->type;
+			e->named = NAME_FRAMES;
+		}
 		aim = aim_at(e);
 
 		switch (e->type) {
@@ -1048,6 +1059,7 @@ static void next_lap(void)
 	float shift;
 
 	level_generate(&lv, ++g.sector);
+	g.met = 0;
 	shift = START_CAM - g.cam;
 	g.cam += shift;
 	g.p.y += shift;
@@ -1482,6 +1494,24 @@ static void draw_items(float cam, int blink)
 	}
 }
 
+/* Newcomers carry their name for a moment; the core's is in the HUD. */
+static void draw_names(float cam)
+{
+	for (int i = 0; i < MAX_ENEMY; i++) {
+		const struct enemy *e = &g.enemy[i];
+		const char *name = et[e->type].name;
+		float w, x, y;
+
+		if (!e->alive || !e->named || !name)
+			continue;
+		w = strlen(name) * 4 - 1;
+		x = SDL_clamp(e->x - w / 2, 2, SCREEN_W - w - 2);
+		y = e->y - cam + et[e->type].radius + 4;
+		gfx_rect(x - 2, y - 1, w + 4, 7, (SDL_Color){ 0, 0, 0, 150 });
+		gfx_text(x, y, 1, WHITE, "%s", name);
+	}
+}
+
 static SDL_Color faint(SDL_Color c)
 {
 	c.a /= 2;
@@ -1566,7 +1596,7 @@ static void draw_hud(void)
 			continue;
 		gfx_rect(SCREEN_W / 2 - 51, 12, 102, 4, DARK);
 		gfx_rect(SCREEN_W / 2 - 50, 13, 100.0f * e->hp / e->full, 2, shielded(e) ? CYAN : RED);
-		if (e->t < 240 && (e->t & 16))
+		if (e->named & 16)
 			gfx_text(-1, 20, 2, YELLOW, "%s", boss()->name);
 	}
 }
@@ -1604,6 +1634,7 @@ void game_draw(void)
 	if (g.p.ship)
 		draw_player(cam);
 	draw_bullets(cam);
+	draw_names(cam);
 
 	for (int i = 0; i < MAX_PART; i++) {
 		const struct part *q = &g.part[i];
