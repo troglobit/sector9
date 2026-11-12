@@ -54,9 +54,11 @@ float gfx_scale(void);
 void gfx_sprite(int id, float x, float y, double angle, float scale, int mode);
 void gfx_tinted(int id, float x, float y, float scale, SDL_Color c);
 void gfx_disc(float x, float y, float r, SDL_Color c);
+/* Soft light added on top of what is there. */
+void gfx_glow(float x, float y, float r, SDL_Color c);
 void gfx_plate(int id, int theme, float x, float y, SDL_Color tint);
 void gfx_rect(float x, float y, float w, float h, SDL_Color c);
-void gfx_logo(float y);
+void gfx_logo(float y, int frame);
 /* x < 0 centers the text */
 void gfx_text(float x, float y, int scale, SDL_Color c, const char *fmt, ...)
 	__attribute__((format(printf, 5, 6)));

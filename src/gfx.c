@@ -18,6 +18,8 @@
 #define FONT_H    5
 #define FONT_ADV  4
 #define ORB_R     3
+#define GLOW_PX   64
+#define SHEAR     0.2f	/* lean of the logo */
 
 struct rgb { float r, g, b; };
 
@@ -45,7 +47,7 @@ struct font {
 static SDL_Renderer *ren;
 static SDL_Texture  *tex[SPR_MAX];
 static SDL_Texture  *plate[THEME_MAX][PLATE_MAX];
-static SDL_Texture  *logo;
+static SDL_Texture  *logo, *shine, *glow;
 static struct font   font[FONTS];
 
 /* All craft face up, except the dart, which dives. */
@@ -432,6 +434,17 @@ static SDL_Texture *upload(Uint8 *px, int w, int h, SDL_ScaleMode mode)
 	return t;
 }
 
+/* A texture that adds its light to what is under it.  Frees px. */
+static SDL_Texture *upload_light(Uint8 *px, int w, int h)
+{
+	SDL_Texture *t = upload(px, w, h, SDL_ScaleModeLinear);
+
+	if (t)
+		SDL_SetTextureBlendMode(t, SDL_BLENDMODE_ADD);
+
+	return t;
+}
+
 static void put(Uint8 *px, struct rgb c, float a)
 {
 	px[0] = SDL_clamp(c.r, 0, 255);
@@ -595,41 +608,72 @@ static float streak_dist(float x, float y)
 	return fminf(seg_dist(x, y, 8, 61, 146, 61) - 0.7f, seg_dist(x, y, 34, 65.5f, 132, 65.5f) - 0.5f);
 }
 
+static SDL_Texture *make_glow(void)
+{
+	Uint8 *px = malloc(GLOW_PX * GLOW_PX * 4);
+
+	if (!px)
+		return NULL;
+
+	for (int i = 0; i < GLOW_PX * GLOW_PX; i++) {
+		float d = hypotf(i % GLOW_PX + 0.5f - GLOW_PX / 2, i / GLOW_PX + 0.5f - GLOW_PX / 2) / (GLOW_PX / 2);
+		float a = clamp01(1 - d);
+
+		put(&px[i * 4], (struct rgb){ 255, 255, 255 }, a * a);
+	}
+
+	return upload_light(px, GLOW_PX, GLOW_PX);
+}
+
 /* Chrome word and a hot numeral, both leaning forward. */
 static SDL_Texture *make_logo(void)
 {
 	static const struct rgb ink = { 6, 10, 26 };
 	int w = LOGO_W * LOGO_RES, h = LOGO_H * LOGO_RES;
-	Uint8 *px = malloc(w * h * 4);
+	Uint8 *px = malloc(w * h * 4), *mask = malloc(w * h * 4);
 
-	if (!px)
+	if (!px || !mask) {
+		free(px);
+		free(mask);
 		return NULL;
+	}
 
 	for (int i = 0; i < w * h; i++) {
 		float y = (i / w + 0.5f) / LOGO_RES;
-		float x = (i % w + 0.5f) / LOGO_RES - (54 - y) * 0.2f;
+		float x = (i % w + 0.5f) / LOGO_RES - (54 - y) * SHEAR;
 		float word = word_dist(x, y), nine = nine_dist(x, y), line = streak_dist(x, y);
+		float cast = fminf(word_dist(x - 2.2f, y - 2.6f), nine_dist(x - 2.2f, y - 2.6f));
 		float p[4] = { 0 };
 		struct rgb c;
-		float v;
+		float v, band, gap;
 
 		over(p, (struct rgb){ 60, 190, 255 }, 0.4f * expf(-fmaxf(word, 0) / 2.5f));
 		over(p, (struct rgb){ 255, 120, 30 }, 0.45f * expf(-fmaxf(nine, 0) / 3.5f));
-		over(p, (struct rgb){ 96, 220, 240 }, 0.5f - line * LOGO_RES);
+		over(p, (struct rgb){ 0, 0, 0 }, 0.55f * clamp01(0.5f - (cast - 1.1f) * LOGO_RES));
+		over(p, (struct rgb){ 96, 220, 240 }, clamp01(0.5f - line * LOGO_RES) * clamp01((x - 6) / 50));
 		over(p, ink, 0.5f - (fminf(word, nine) - 1.1f) * LOGO_RES);
 
 		v = (y - 28) / 28;
 		c = v < 0.5f ? ramp((struct rgb){ 236, 250, 255 }, (struct rgb){ 84, 150, 232 }, v * 2.2f)
 			     : ramp((struct rgb){ 28, 40, 84 }, (struct rgb){ 190, 206, 228 }, v * 2.6f - 1.3f);
+		/* the horizon in the chrome */
+		c = ramp(c, (struct rgb){ 255, 255, 255 }, clamp01(1 - fabsf(v - 0.5f) * 28));
 		over(p, shade(c, bevel(word, word_dist(x - 0.3f, y - 0.3f), 0.3f, 1)), 0.5f - word * LOGO_RES);
 
 		v = (y - 14) / 52;
 		c = v < 0.5f ? ramp((struct rgb){ 255, 246, 176 }, (struct rgb){ 255, 164, 40 }, v * 2)
 			     : ramp((struct rgb){ 255, 164, 40 }, (struct rgb){ 214, 52, 44 }, v * 2 - 1);
+		/* slats through the lower half, wider towards the bottom, like a setting sun */
+		band = fmodf(y - 14, 5);
+		gap = (v - 0.42f) * 4.2f;
+		c = ramp(c, (struct rgb){ 70, 12, 40 }, clamp01((gap - band) * LOGO_RES) * clamp01(band * LOGO_RES));
 		over(p, shade(c, bevel(nine, nine_dist(x - 0.4f, y - 0.4f), 0.4f, 2.2f)), 0.5f - nine * LOGO_RES);
 
 		put(&px[i * 4], shade((struct rgb){ p[0], p[1], p[2] }, p[3] > 0 ? 1 / p[3] : 0), p[3]);
+		put(&mask[i * 4], (struct rgb){ 255, 255, 255 }, 0.5f - fminf(word, nine) * LOGO_RES);
 	}
+
+	shine = upload_light(mask, w, h);
 
 	return upload(px, w, h, SDL_ScaleModeLinear);
 }
@@ -703,6 +747,7 @@ void gfx_init(SDL_Renderer *r)
 	for (int i = 0; i < SPR_MAX; i++)
 		tex[i] = make_sprite(&model[i]);
 	logo = make_logo();
+	glow = make_glow();
 }
 
 static void draw(int id, float x, float y, double angle, float scale)
@@ -756,11 +801,54 @@ void gfx_rect(float x, float y, float w, float h, SDL_Color c)
 	SDL_RenderFillRectF(ren, &r);
 }
 
-void gfx_logo(float y)
+void gfx_glow(float x, float y, float r, SDL_Color c)
 {
-	SDL_FRect dst = { (SCREEN_W - LOGO_W) / 2, y, LOGO_W, LOGO_H };
+	SDL_FRect dst = { x - r, y - r, 2 * r, 2 * r };
+
+	SDL_SetTextureColorMod(glow, c.r, c.g, c.b);
+	SDL_SetTextureAlphaMod(glow, c.a);
+	SDL_RenderCopyF(ren, glow, NULL, &dst);
+}
+
+/* A four-pointed sparkle that swells and fades. */
+static void glint(float x, float y, float t)
+{
+	float k = sinf(t), s;
+
+	if (k <= 0)
+		return;
+	s = k * k * k * 9;
+	gfx_glow(x, y, s, (SDL_Color){ 255, 255, 255, 200 });
+	gfx_rect(x - s, y - 0.3f, 2 * s, 0.6f, (SDL_Color){ 255, 255, 255, 220 });
+	gfx_rect(x - 0.3f, y - s, 0.6f, 2 * s, (SDL_Color){ 255, 255, 255, 220 });
+}
+
+void gfx_logo(float y, int frame)
+{
+	enum { SLICES = 8, WIDTH = 9, PERIOD = 300, LEAD = 30 };
+	float x0 = (SCREEN_W - LOGO_W) / 2, sh = (float)LOGO_H / SLICES;
+	SDL_FRect dst = { x0, y, LOGO_W, LOGO_H };
+	float sweep = (frame % PERIOD) * 3.0f - LEAD, t = frame * 0.045f;
 
 	SDL_RenderCopyF(ren, logo, NULL, &dst);
+
+	/* a band of light crosses the letters, leaning with them */
+	for (int j = 0; j < SLICES && sweep < LOGO_W + LEAD; j++) {
+		for (int k = -WIDTH; k <= WIDTH; k++) {
+			int sx = sweep + k + (LOGO_H / 2 - (j + 0.5f) * sh) * SHEAR;
+			SDL_Rect src = { sx * LOGO_RES, j * sh * LOGO_RES, LOGO_RES, sh * LOGO_RES };
+			SDL_FRect to = { x0 + sx, y + j * sh, 1, sh };
+
+			if (sx < 0 || sx >= LOGO_W)
+				continue;
+			SDL_SetTextureAlphaMod(shine, 150 * (WIDTH + 1 - abs(k)) / (WIDTH + 1));
+			SDL_RenderCopyF(ren, shine, &src, &to);
+		}
+	}
+
+	glint(x0 + 30, y + 30, t);
+	glint(x0 + 191, y + 17, t + 2.1f);
+	glint(x0 + 124, y + 31, t + 4.2f);
 }
 
 void gfx_text(float x, float y, int scale, SDL_Color c, const char *fmt, ...)

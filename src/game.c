@@ -7,6 +7,9 @@
 #define MAX_ENEMY  64
 #define MAX_BULLET 160
 #define MAX_PART   200
+#define BLAST_LIFE 20
+#define MAX_SHAKE  10
+#define SCAN_GAP   60
 #define MAX_ITEM   8
 #define MAX_HP     4
 #define MAX_WEAPON 3
@@ -35,7 +38,7 @@ enum { L_GROUND = 1, L_AIR = 2 };
 
 struct enemy  { int alive, type, delay, hp, full, lifted, t, flash; float x, y, vx; };
 struct bullet { int alive, friendly, level; float x, y, vx, vy; int homing; };
-struct part   { int life; float x, y, vx, vy; SDL_Color c; };
+struct part   { int life; float x, y, vx, vy; SDL_Color c; float blast; };
 struct item   { int alive, kind, rise; float x, y; };
 struct player { float x, y; int ship, dir, diag, hp, weapon, speed, buddies, missiles, missile_cd, reload, morph_cd, invuln, dead, fused; };
 struct axis   { int sign, seen, flip; };
@@ -44,7 +47,7 @@ static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
 	float         mx, my;
 	int           mouse;
-	int           pods, next_spawn, start_row, start_sector, flash;
+	int           pods, next_spawn, start_row, start_sector, flash, shake;
 	struct axis   wx, wy;
 	float         cam, fx, fy;
 	unsigned      seed;
@@ -243,16 +246,18 @@ static void ship_scroll(struct player *p)
 	g.cam -= pace;
 }
 
-static void emit(float x, float y, float vx, float vy, int life, SDL_Color c)
+static struct part *emit(float x, float y, float vx, float vy, int life, SDL_Color c)
 {
 	for (int i = 0; i < MAX_PART; i++) {
 		struct part *q = &g.part[i];
 
 		if (q->life > 0)
 			continue;
-		*q = (struct part){ life, x, y, vx, vy, c };
-		return;
+		*q = (struct part){ life, x, y, vx, vy, c, 0 };
+		return q;
 	}
+
+	return NULL;
 }
 
 static void spark(float x, float y, int n, float speed, SDL_Color c)
@@ -261,8 +266,15 @@ static void spark(float x, float y, int n, float speed, SDL_Color c)
 		emit(x, y, frand() * speed, frand() * speed, 15 + rnd(25), c);
 }
 
+/* A fireball of the given radius where the sparks fly from, and a jolt. */
 static void explode(float x, float y, int size)
 {
+	struct part *q = emit(x, y, 0, 0, BLAST_LIFE, ORANGE);
+
+	if (q)
+		q->blast = 4 + size * 0.3f;
+	g.shake = SDL_max(g.shake, SDL_min(size / 6, MAX_SHAKE));
+
 	spark(x, y, size, 2.0f, ORANGE);
 	spark(x, y, size / 2, 1.2f, YELLOW);
 	spark(x, y, size / 3, 0.6f, WHITE);
@@ -403,6 +415,7 @@ static void hurt_player(void)
 
 	sfx_play(SFX_HURT);
 	p->invuln = 60;
+	g.shake = SDL_max(g.shake, 6);
 	if (--p->hp > 0)
 		return;
 
@@ -1030,6 +1043,8 @@ void game_update(const struct input *in)
 	g.frame++;
 	if (g.flash)
 		g.flash--;
+	if (g.shake)
+		g.shake--;
 
 	/* one-button joystick: a quick wiggle on either axis morphs */
 	morph |= wiggle(&g.wx, in->right - in->left);
@@ -1112,12 +1127,20 @@ static void draw_tiles(int roof, float cam)
 		{ 240, 226, 255, 255 }, { 255, 250, 200, 255 }, { 205, 240, 255, 255 },
 		{ 255, 214, 226, 255 }, { 226, 255, 210, 255 }, { 255, 255, 255, 255 },
 	};
+	/* never the colours of a shot */
+	static const SDL_Color lamps[THEME_MAX][3] = {
+		{ { 90, 255, 140, 0 }, { 80, 200, 255, 0 }, { 200, 255, 220, 0 } },
+		{ { 120, 200, 255, 0 }, { 200, 230, 255, 0 }, { 90, 160, 255, 0 } },
+	};
 	SDL_Color tint = tints[g.sector % SDL_arraysize(tints)];
 	int theme = last_sector() ? THEME_EMBER : THEME_STEEL;
 	int r0 = (int)cam / TILE;
 	int glow = 50 + (int)(12 * sinf(g.frame * 0.1f));
 
 	for (int r = r0; r <= r0 + SCREEN_H / TILE && r < MAP_H; r++) {
+		/* lines of light run up through the roof */
+		float scan = SCAN_GAP - fmodf(r * TILE + g.frame * 0.5f, SCAN_GAP);
+
 		for (int c = 0; c < MAP_W; c++) {
 			int t = lv.tile[r][c];
 			float x = c * TILE, y = r * TILE - cam;
@@ -1132,6 +1155,8 @@ static void draw_tiles(int roof, float cam)
 				gfx_rect(x, y, TILE, TILE, (SDL_Color){ 40, 200, 220, glow });
 				gfx_rect(x, y, TILE, 0.5f, (SDL_Color){ 130, 240, 255, 110 });
 				gfx_rect(x, y, 0.5f, TILE, (SDL_Color){ 130, 240, 255, 110 });
+				if (scan < TILE)
+					gfx_rect(x, y + scan, TILE, 0.8f, (SDL_Color){ 190, 250, 255, 70 });
 			} else if (t == T_WALL) {
 				gfx_plate(PLATE_WALL, theme, x, y, tint);
 			} else {
@@ -1140,6 +1165,13 @@ static void draw_tiles(int roof, float cam)
 					gfx_rect(x, y, TILE, 5, (SDL_Color){ 0, 0, 0, 90 });
 				if (c > 0 && lv.tile[r][c - 1] == T_WALL)
 					gfx_rect(x, y, 4, TILE, (SDL_Color){ 0, 0, 0, 70 });
+				if (h % 13 == 3) {
+					SDL_Color lamp = lamps[theme][(h >> 5) % 3];
+
+					lamp.a = 150 + 100 * sinf(g.frame * 0.07f + h % 64);
+					gfx_glow(x + 3.5f, y + 3.5f, 5, lamp);
+					gfx_disc(x + 3.5f, y + 3.5f, 0.9f, lamp);
+				}
 			}
 		}
 	}
@@ -1196,7 +1228,13 @@ static void draw_player(float cam)
 	if (ship) {
 		int id = p->fused ? SPR_FUSED : SPR_SHIP;
 
+		float burn = 2.2f + ((g.frame >> 1) & 1) + 0.6f * ((g.frame >> 2) & 1);
+
 		gfx_tinted(id, p->x + 4, y + 8, 1, SHADOW);
+		for (int i = -1; i <= 1; i += 2) {
+			gfx_glow(p->x + i * 1.2f, y + 8.5f, burn * 2.4f, ORANGE);
+			gfx_disc(p->x + i * 1.2f, y + 7.6f + burn * 0.4f, burn * 0.35f, YELLOW);
+		}
 		gfx_sprite(id, p->x, y, 0, 1, DRAW_NORMAL);
 	} else {
 		gfx_sprite(SPR_TANK, p->x, y, player_angle() * 180 / (float)M_PI, 1, DRAW_NORMAL);
@@ -1215,10 +1253,18 @@ static void draw_items(float cam, int blink)
 			continue;
 		if (blink && !it->rise)
 			c = (SDL_Color){ (c.r + 255) / 2, (c.g + 255) / 2, (c.b + 255) / 2, 255 };
+		gfx_glow(it->x, y, 11 * size, (SDL_Color){ c.r, c.g, c.b, blink ? 150 : 90 });
 		gfx_tinted(SPR_CAPSULE, it->x, y, size, c);
 		if (!it->rise)
 			gfx_text(it->x - 1.5f, y - 2.5f, 1, DARK, "%c", item_look[it->kind].letter);
 	}
+}
+
+static SDL_Color faint(SDL_Color c)
+{
+	c.a /= 2;
+
+	return c;
 }
 
 static void draw_bullets(float cam)
@@ -1235,18 +1281,39 @@ static void draw_bullets(float cam)
 			float r = (b->level & L_AIR) ? 3 : 2;
 
 			c.a = mid.a = (b->level & player_level()) ? 255 : 70;
+			gfx_glow(b->x, y, r * 3, faint(c));
 			gfx_disc(b->x, y, r, c);
 			gfx_disc(b->x, y, r / 2, mid);
 		} else if (b->homing) {
+			gfx_glow(b->x, y, 8, ORANGE);
 			gfx_disc(b->x, y, 2.4f, WHITE);
 			gfx_disc(b->x, y, 1.3f, RED);
 		} else if (b->level & L_AIR) {
+			gfx_glow(b->x, y, 6, faint(CYAN));
 			gfx_rect(b->x - 1, y - 3, 2, 6, CYAN);
 			gfx_rect(b->x - 0.5f, y - 3, 1, 6, WHITE);
 		} else {
+			gfx_glow(b->x, y, 6, faint(YELLOW));
 			gfx_disc(b->x, y, 1.8f, YELLOW);
 		}
 	}
+}
+
+/* The fireball swells fast, then burns down from the outside in. */
+static void draw_blast(const struct part *q, float cam)
+{
+	float k = 1 - (float)q->life / BLAST_LIFE, y = q->y - cam;
+	float r = q->blast * (k < 0.25f ? 0.5f + 2 * k : 1 - (k - 0.25f) * 0.6f);
+	SDL_Color hot = ORANGE;
+
+	hot.a = 255 * (1 - k);
+	gfx_glow(q->x, y, q->blast * (1.6f + k), hot);
+	gfx_disc(q->x, y, r, (SDL_Color){ 200, 60, 40, 220 * (1 - k * k) });
+	gfx_disc(q->x, y, r * (0.8f - 0.5f * k), ORANGE);
+	if (k < 0.7f)
+		gfx_disc(q->x, y, r * (0.55f - 0.7f * k), YELLOW);
+	if (k < 0.35f)
+		gfx_disc(q->x, y, r * (0.3f - 0.8f * k), WHITE);
 }
 
 static void draw_hud(void)
@@ -1273,7 +1340,7 @@ static void draw_hud(void)
 
 void game_draw(void)
 {
-	float cam = g.cam;
+	float cam = g.cam + ((g.frame & 2) ? 0.4f : -0.4f) * g.shake;
 	int blink = (g.frame / 30) & 1;
 
 	if (beyond())
@@ -1283,7 +1350,7 @@ void game_draw(void)
 	if (g.state == ST_TITLE) {
 		draw_tiles(1, cam);
 		gfx_rect(0, 0, SCREEN_W, SCREEN_H, (SDL_Color){ 0, 0, 0, 130 });
-		gfx_logo(14);
+		gfx_logo(14, g.frame);
 		if (blink)
 			gfx_text(-1, 124, 2, WHITE, "PRESS FIRE");
 		gfx_text(-1, 170, 1, GREY, "ARROWS MOVE - Z FIRES - SPACE MORPHS");
@@ -1308,7 +1375,11 @@ void game_draw(void)
 		const struct part *q = &g.part[i];
 		float sz = q->life > 12 ? 1.6f : 1;
 
-		if (q->life > 0)
+		if (q->life <= 0)
+			continue;
+		if (q->blast)
+			draw_blast(q, cam);
+		else
 			gfx_rect(q->x, q->y - cam, sz, sz, q->c);
 	}
 
