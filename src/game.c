@@ -26,6 +26,7 @@
 #define SHIP_HURRY  2.0f
 #define HALT_Y     100
 #define MARK_NEAR  3
+#define MARK_REACH 16
 #define LIFE_SCORE 20000
 #define HOVER_Y    56
 #define FUSE_FRAMES 480
@@ -46,7 +47,7 @@ struct axis   { int sign, seen, flip; };
 static struct {
 	int           state, sector, score, hiscore, lives, timer, frame;
 	float         mx, my;
-	int           mouse;
+	int           mouse, direct;
 	int           pods, next_spawn, start_row, start_sector, flash, shake;
 	struct axis   wx, wy;
 	float         cam, fx, fy;
@@ -553,6 +554,17 @@ static void update_player(const struct input *in, int morph)
 		ty = g.my - (p->y - g.cam);
 		len = hypotf(tx, ty);
 
+		/* direct steering keeps the marker on a short leash and out of sight */
+		if (g.direct && len > MARK_REACH) {
+			float k = MARK_REACH / len;
+
+			tx *= k;
+			ty *= k;
+			len = MARK_REACH;
+			g.mx = p->x + tx;
+			g.my = p->y - g.cam + ty;
+		}
+
 		if (p->ship && len > 0) {
 			vx = tx / len * SDL_min(len, speed);
 			vy = ty / len * SDL_min(len, speed);
@@ -1034,6 +1046,11 @@ int game_hiscore(void)
 	return g.hiscore;
 }
 
+void game_mouse(int direct)
+{
+	g.direct = direct;
+}
+
 int game_escape(void)
 {
 	if (g.state == ST_TITLE)
@@ -1365,6 +1382,7 @@ void game_draw(void)
 		gfx_text(-1, 170, 1, GREY, "ARROWS MOVE - Z FIRES - SPACE MORPHS");
 		gfx_text(-1, 182, 1, GREY, "MOUSE: LEFT FIRES - RIGHT MORPHS");
 		gfx_text(-1, 194, 1, GREY, "JOYSTICK: WIGGLE TO MORPH");
+		gfx_text(-1, 206, 1, GREY, "M: MOUSE STEERING - ESC: QUIT");
 		if (g.hiscore)
 			gfx_text(-1, 220, 1, YELLOW, "HI %06d", g.hiscore);
 		return;
@@ -1392,7 +1410,7 @@ void game_draw(void)
 			gfx_rect(q->x, q->y - cam, sz, sz, q->c);
 	}
 
-	if (g.mouse && g.state == ST_PLAY && !g.p.dead) {
+	if (g.mouse && !g.direct && g.state == ST_PLAY && !g.p.dead) {
 		for (int i = -1; i <= 1; i += 2) {
 			gfx_rect(g.mx + i * 4 - 1.5f, g.my - 0.5f, 3, 1, MARK);
 			gfx_rect(g.mx - 0.5f, g.my + i * 4 - 1.5f, 1, 3, MARK);

@@ -69,6 +69,8 @@ void sfx_music(const char *name);
 
 void game_init(int start_row, int start_sector, int hiscore);
 int  game_hiscore(void);
+/* The mouse moves a marker to head for; with direct set the marker is hidden and stays by the craft. */
+void game_mouse(int direct);
 /* Leaves the game for the title screen; returns 1 if already there. */
 int  game_escape(void);
 void game_update(const struct input *in);

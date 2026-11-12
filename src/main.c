@@ -79,9 +79,11 @@ static void screenshot(SDL_Renderer *ren, const char *file)
 static int usage(int rc)
 {
 	fprintf(rc ? stderr : stdout,
-		"Usage: sector9 [-fh]\n"
+		"Usage: sector9 [-fh] [-m MODE]\n"
 		"  -f, --fullscreen  Start in fullscreen\n"
-		"  -h, --help        Show this help text\n");
+		"  -h, --help        Show this help text\n"
+		"  -m, --mouse MODE  Mouse steering: marker (the craft heads for a marker)\n"
+		"                    or direct (the craft follows the mouse and stops with it)\n");
 	return rc;
 }
 
@@ -115,6 +117,7 @@ int main(int argc, char *argv[])
 	static const struct option opts[] = {
 		{ "fullscreen", no_argument,       NULL, 'f' },
 		{ "help",       no_argument,       NULL, 'h' },
+		{ "mouse",      required_argument, NULL, 'm' },
 		{ "demo",       no_argument,       NULL, OPT_DEMO },
 		{ "frames",     required_argument, NULL, OPT_FRAMES },
 		{ "shot",       required_argument, NULL, OPT_SHOT },
@@ -123,20 +126,29 @@ int main(int argc, char *argv[])
 		{ 0 }
 	};
 	int fullscreen = 0, demo = 0, frames = 0, row = 0, sector = 1, paused = 0, mouse = 0, notice = 0, hi = 0, run = 1;
-	int c;
+	int direct = -1, c;
+	char note[32] = "";
 	const char *shot = NULL;
 	SDL_Window *win;
 	SDL_Renderer *ren;
 	Uint64 prev;
 	double acc = 0;
 
-	while ((c = getopt_long(argc, argv, "fh", opts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "fhm:", opts, NULL)) != -1) {
 		switch (c) {
 		case 'f':
 			fullscreen = 1;
 			break;
 		case 'h':
 			return usage(0);
+		case 'm':
+			if (!strcmp(optarg, "marker"))
+				direct = 0;
+			else if (!strcmp(optarg, "direct"))
+				direct = 1;
+			else
+				return usage(1);
+			break;
 		case OPT_DEMO:
 			demo = 1;
 			break;
@@ -190,8 +202,13 @@ int main(int argc, char *argv[])
 	if (!demo) {
 		hi = stored("hiscore", 0);
 		set_mouse_speed(stored("mouse", 0));
+		/* stored as 1 or 2, a missing setting reads as 0 */
+		if (direct < 0)
+			direct = stored("steer", 0) - 1;
 	}
+	direct = direct > 0;
 	game_init(row, sector - 1, hi);
+	game_mouse(direct);
 
 	prev = SDL_GetPerformanceCounter();
 	while (run) {
@@ -223,15 +240,23 @@ int main(int argc, char *argv[])
 				paused = !paused;
 				grab_mouse(mouse && !paused);
 				break;
+			case SDLK_m:
+				direct = !direct;
+				game_mouse(direct);
+				snprintf(note, sizeof(note), "MOUSE STEERING: %s", direct ? "DIRECT" : "MARKER");
+				notice = 90;
+				break;
 			case SDLK_MINUS:
 			case SDLK_KP_MINUS:
 				set_mouse_speed(SDL_max(mouse_speed - 1, 1));
+				snprintf(note, sizeof(note), "MOUSE SPEED %d", mouse_speed);
 				notice = 90;
 				break;
 			case SDLK_EQUALS:
 			case SDLK_PLUS:
 			case SDLK_KP_PLUS:
 				set_mouse_speed(mouse_speed + 1);
+				snprintf(note, sizeof(note), "MOUSE SPEED %d", mouse_speed);
 				notice = 90;
 				break;
 			case SDLK_F11:
@@ -275,7 +300,7 @@ int main(int argc, char *argv[])
 			gfx_text(-1, 110, 3, (SDL_Color){ 255, 255, 255, 255 }, "PAUSED");
 		if (notice) {
 			notice--;
-			gfx_text(-1, 14, 1, (SDL_Color){ 255, 255, 255, 255 }, "MOUSE SPEED %d", mouse_speed);
+			gfx_text(-1, 14, 1, (SDL_Color){ 255, 255, 255, 255 }, "%s", note);
 		}
 		if (frames && --frames == 0) {
 			if (shot)
@@ -289,6 +314,7 @@ int main(int argc, char *argv[])
 	if (!demo) {
 		stored("hiscore", game_hiscore());
 		stored("mouse", mouse_speed);
+		stored("steer", direct + 1);
 	}
 
 	SDL_Quit();

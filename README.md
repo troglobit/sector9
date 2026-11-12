@@ -34,6 +34,7 @@ and ship.  Space does the same and is easier on a keyboard.
 | Z or Ctrl        | Fire                        |
 | Space or X       | Morph                       |
 | P                | Pause                       |
+| M                | Mouse steering: marker or direct |
 | - and +          | Mouse speed                 |
 | F11              | Toggle fullscreen           |
 | Esc              | Back to the title screen, quit from there |
@@ -47,8 +48,13 @@ for it: the ship in a straight line, the tank in the nearest of its
 eight directions.  The craft stops when it gets there, so park the
 marker where you want to be, or leave it at the top of the screen to
 keep driving.  Hold the left button to fire and press the right one to
-morph.  The minus and plus keys change how fast the marker moves, and
-the setting is saved.
+morph.
+
+If you would rather have the craft move as the mouse does and stop
+when it stops, press M for direct steering; M again brings the marker
+back.  The minus and plus keys change the mouse speed.  Both settings
+are saved.  `sector9 --mouse direct` (or `marker`) sets the steering
+from the command line, and `sector9 --help` lists all options.
 
 The tank sets its own pace: the screen scrolls only when you drive
 forward.  It faces and fires the way it drives, in eight directions.  The ship
