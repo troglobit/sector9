@@ -9,7 +9,7 @@
 #define TILE       20
 #define MAP_W      (SCREEN_W / TILE)
 #define MAP_H      400
-#define ARENA_ROWS 16
+#define ARENA_ROWS 8
 #define MAX_SPAWN  512
 #define SECTORS    9
 

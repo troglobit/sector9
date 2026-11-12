@@ -20,6 +20,7 @@
 #define WIGGLE_FRAMES 12
 #define DIAG_FRAMES 8
 #define SHIP_SCROLL 0.6f
+#define SHIP_HURRY  2.0f
 #define HALT_Y     100
 #define MARK_NEAR  3
 #define LIFE_SCORE 20000
@@ -140,9 +141,26 @@ static int rank(void)
 	return SDL_min(g.sector, 12);
 }
 
+/* Only the boss is left to spawn and no enemy is alive. */
+static int boss_next(void)
+{
+	if (g.next_spawn >= lv.nspawn || !et[lv.spawn[g.next_spawn].type].boss)
+		return 0;
+
+	for (int i = 0; i < MAX_ENEMY; i++) {
+		if (g.enemy[i].alive)
+			return 0;
+	}
+
+	return 1;
+}
+
 static float scroll_pace(void)
 {
-	return beyond() ? SDL_min(1.2f, 0.75f + 0.15f * lap()) : SHIP_SCROLL;
+	if (beyond())
+		return SDL_min(1.2f, 0.75f + 0.15f * lap());
+
+	return boss_next() ? SHIP_HURRY : SHIP_SCROLL;
 }
 
 /* The fused craft is on both levels at once. */
