@@ -269,7 +269,7 @@ static void drop_item(float x, float y, int rise)
 {
 	const struct player *p = &g.p;
 	static const int odds[] = {
-		IT_GUN, IT_GUN, IT_SHIELD, IT_SHIELD, IT_SPEED, IT_BUDDY, IT_MISSILE, IT_MISSILE, IT_BOMB,
+		IT_GUN, IT_GUN, IT_SHIELD, IT_SHIELD, IT_SPEED, IT_SPEED, IT_BUDDY, IT_MISSILE, IT_MISSILE, IT_BOMB,
 	};
 	int kind = odds[rnd(SDL_arraysize(odds))];
 
@@ -475,7 +475,7 @@ static void update_player(const struct input *in, int morph)
 	static const int facing[3][3] = { { 7, 0, 1 }, { 6, -1, 2 }, { 5, 4, 3 } };
 	struct player *p = &g.p;
 	int dx = in->right - in->left, dy = in->down - in->up;
-	float speed = (p->ship ? 2.0f : 1.2f) * (1 + 0.2f * p->speed);
+	float speed = (p->ship ? 2.5f : 1.6f) * (1 + 0.2f * p->speed);
 	int block = p->ship ? T_ROOF : T_WALL;
 	float nx, ny, sy, vx = 0, vy = 0;
 
