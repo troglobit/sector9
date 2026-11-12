@@ -1111,7 +1111,7 @@ void game_init(int start_row, int start_sector, int hiscore)
 	g.hiscore = hiscore;
 	g.seed = 0x2545f491u;
 	g.start_row = start_row;
-	g.start_sector = SDL_clamp(start_sector, 0, SECTORS);
+	g.start_sector = SDL_clamp(start_sector, 0, 2 * SECTORS - 1);
 	g.wx.flip = g.wy.flip = -1000;
 	show_title();
 }

@@ -108,6 +108,9 @@ spirals or volleys aimed at the tank, and two of them send out rovers.
 | 8      | Swarm    | 4      | Sways, fires a spiral, sends out rovers |
 | 9      | Overseer | 4      | Weaves, fires rings, lifts off         |
 
+`sector9 --boss N` starts at the fortress of sector N, to have a look
+at it or to practise.  10 to 18 are the laps beyond sector nine.
+
 There are nine sectors.  The first ones are short and leave out the
 harder enemies.  Later sectors are longer, bring in gunships and heavy
 tanks, and everything in them fires faster.  Every 20,000 points earns

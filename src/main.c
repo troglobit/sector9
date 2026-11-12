@@ -7,6 +7,7 @@
 #include "game.h"
 
 #define STEP (1.0 / 60)
+#define BOSS_ROW 2	/* start row with the whole fortress on screen */
 
 static SDL_GameController *pad;
 static int mouse_speed = 6;	/* half game pixels per count */
@@ -79,7 +80,9 @@ static void screenshot(SDL_Renderer *ren, const char *file)
 static int usage(int rc)
 {
 	fprintf(rc ? stderr : stdout,
-		"Usage: sector9 [-fh] [-m MODE]\n"
+		"Usage: sector9 [-bfhm]\n"
+		"  -b, --boss N      Start at the fortress of sector N, to look at it or practise;\n"
+		"                    10 to 18 are the laps beyond sector nine\n"
 		"  -f, --fullscreen  Start in fullscreen\n"
 		"  -h, --help        Show this help text\n"
 		"  -m, --mouse MODE  Mouse steering: marker (the craft heads for a marker)\n"
@@ -115,6 +118,7 @@ int main(int argc, char *argv[])
 	/* the long-only options are test hooks: scripted player, frame limit, screenshot, start row and sector */
 	enum { OPT_DEMO = 256, OPT_FRAMES, OPT_SHOT, OPT_ROW, OPT_SECTOR };
 	static const struct option opts[] = {
+		{ "boss",       required_argument, NULL, 'b' },
 		{ "fullscreen", no_argument,       NULL, 'f' },
 		{ "help",       no_argument,       NULL, 'h' },
 		{ "mouse",      required_argument, NULL, 'm' },
@@ -134,8 +138,12 @@ int main(int argc, char *argv[])
 	Uint64 prev;
 	double acc = 0;
 
-	while ((c = getopt_long(argc, argv, "fhm:", opts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "b:fhm:", opts, NULL)) != -1) {
 		switch (c) {
+		case 'b':
+			sector = atoi(optarg);
+			row = BOSS_ROW;
+			break;
 		case 'f':
 			fullscreen = 1;
 			break;
