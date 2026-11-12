@@ -269,6 +269,7 @@ int main(int argc, char *argv[])
 				snprintf(note, sizeof(note), "MOUSE SPEED %d", mouse_speed);
 				notice = 90;
 				break;
+			case SDLK_f:
 			case SDLK_F11:
 				fullscreen = !fullscreen;
 				SDL_SetWindowFullscreen(win, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);

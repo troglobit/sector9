@@ -36,7 +36,7 @@ and ship.  Space does the same and is easier on a keyboard.
 | P                | Pause                       |
 | M                | Mouse steering: marker or direct |
 | - and +          | Mouse speed                 |
-| F11              | Toggle fullscreen           |
+| F or F11         | Toggle fullscreen           |
 | Esc              | Back to the title screen, quit from there |
 
 A game controller also works: stick or d-pad to move, A to fire, B or
