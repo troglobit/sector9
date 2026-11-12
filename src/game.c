@@ -1224,14 +1224,12 @@ void game_draw(void)
 		draw_tiles(1, cam);
 		gfx_rect(0, 0, SCREEN_W, SCREEN_H, (SDL_Color){ 0, 0, 0, 130 });
 		gfx_logo(14);
-		gfx_text(-1, 98, 1, GREY, "TANK FIGHTS THE GROUND - SHIP FIGHTS THE AIR");
 		if (blink)
 			gfx_text(-1, 124, 2, WHITE, "PRESS FIRE");
-		gfx_text(-1, 164, 1, GREY, "ARROWS OR WASD: MOVE");
-		gfx_text(-1, 174, 1, GREY, "Z OR CTRL: FIRE - HOLD FOR AUTOFIRE");
-		gfx_text(-1, 184, 1, GREY, "SPACE OR WIGGLE THE STICK: MORPH");
-		gfx_text(-1, 194, 1, GREY, "P: PAUSE   F11: FULLSCREEN   ESC: QUIT");
-		gfx_text(-1, 220, 1, YELLOW, "HI %06d", g.hiscore);
+		gfx_text(-1, 176, 1, GREY, "ARROWS MOVE - Z FIRES - SPACE MORPHS");
+		gfx_text(-1, 188, 1, GREY, "JOYSTICK: WIGGLE TO MORPH");
+		if (g.hiscore)
+			gfx_text(-1, 220, 1, YELLOW, "HI %06d", g.hiscore);
 		return;
 	}
 
